@@ -1,120 +1,86 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Lock, Unlock, ChevronLeft, User, AlertTriangle, CheckCircle, Mail, Clock } from 'lucide-react';
-
+import axios from 'axios';
 function JobInterviewDetails() {
   const { jobId } = useParams();
   const navigate = useNavigate();
-  
+
   const [phases, setPhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [modalStep, setModalStep] = useState(1);
   const [selectedCandidates, setSelectedCandidates] = useState([]);
   const [emailBody, setEmailBody] = useState('');
   const [modalType, setModalType] = useState('quiz'); // 'quiz' or 'acceptance'
-  
+
   // Filter and Ranking states
   const [showFilter, setShowFilter] = useState(false);
   const [rankingOption, setRankingOption] = useState('all');
-  
+
   // Candidate detail view
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
+
+
   useEffect(() => {
-    // Fetch job details and phases
-    setTimeout(() => {
-      setJob({
-        id: jobId,
-        title: 'Frontend Developer',
-        company: 'TechCorp Inc.'
-      });
-      
-      // Mock phases data
-      setPhases([
-        {
-          id: 1,
-          name: 'Phase 1: Technical Screening',
-          status: 'completed',
-          quizSent: true,
-          phaseTimeLimit: '60 minutes',
-          candidates: [
-            {
-              id: 1,
-              name: 'John Doe',
-              email: 'john@example.com',
-              score: 92,
-              maxScore: 100,
-              cheatingFlags: ['Multiple face detections', 'Tab switch detected'],
-              submittedAt: '2026-02-10 14:30',
-              timeSpent: '45 min',
-              answers: [
-                { question: 'What is React?', answer: 'React is a JavaScript library for building user interfaces.', idealAnswer: 'React is a JavaScript library for building user interfaces, specifically single-page applications with complex UI updates.', score: 10, maxScore: 10 },
-                { question: 'Explain useState hook', answer: 'useState is a Hook that lets you add React state to function components.', idealAnswer: 'useState is a React Hook that allows functional components to have local state. It returns an array with the current state value and a setter function.', score: 9, maxScore: 10 },
-                { question: 'What are props?', answer: 'Props are arguments passed into React components.', idealAnswer: 'Props (short for properties) are read-only data passed from parent to child components in React.', score: 10, maxScore: 10 }
-              ]
-            },
-            {
-              id: 2,
-              name: 'Jane Smith',
-              email: 'jane@example.com',
-              score: 88,
-              maxScore: 100,
-              cheatingFlags: [],
-              submittedAt: '2026-02-11 09:15',
-              timeSpent: '38 min',
-              answers: [
-                { question: 'What is React?', answer: 'A frontend library', idealAnswer: 'React is a JavaScript library for building user interfaces, specifically for single-page applications.', score: 8, maxScore: 10 },
-                { question: 'Explain useState hook', answer: 'State management hook', idealAnswer: 'useState is a React Hook that allows functional components to have local state with a getter and setter function.', score: 10, maxScore: 10 },
-                { question: 'What are props?', answer: 'Component properties', idealAnswer: 'Props are read-only data passed from parent to child components in React.', score: 10, maxScore: 10 }
-              ]
-            },
-            {
-              id: 3,
-              name: 'Mike Ross',
-              email: 'mike@example.com',
-              score: 75,
-              maxScore: 100,
-              cheatingFlags: ['Copy-paste detected'],
-              submittedAt: '2026-02-12 11:00',
-              timeSpent: '52 min',
-              answers: [
-                { question: 'What is React?', answer: 'Framework', idealAnswer: 'React is a JavaScript library for building user interfaces, primarily for single-page applications.', score: 7, maxScore: 10 },
-                { question: 'Explain useState hook', answer: 'For state', idealAnswer: 'useState is a React Hook that enables functional components to manage internal state.', score: 8, maxScore: 10 },
-                { question: 'What are props?', answer: 'Data passing', idealAnswer: 'Props are the mechanism for passing data from parent to child components in React.', score: 10, maxScore: 10 }
-              ]
-            }
-          ]
-        },
-        {
-          id: 2,
-          name: 'Phase 2: Coding Challenge',
-          status: 'active',
-          quizSent: false,
-          phaseTimeLimit: '90 minutes',
-          candidates: [
-            { id: 4, name: 'Sarah Wilson', email: 'sarah@example.com', score: 0, status: 'pending' },
-            { id: 5, name: 'Tom Brown', email: 'tom@example.com', score: 0, status: 'pending' },
-            { id: 6, name: 'Lisa Chen', email: 'lisa@example.com', score: 0, status: 'pending' }
-          ]
-        },
-        {
-          id: 3,
-          name: 'Phase 3: Final Interview',
-          status: 'locked',
-          phaseTimeLimit: '120 minutes',
-          candidates: []
-        }
-      ]);
-      
-      setActivePhase(1);
-      setLoading(false);
-    }, 500);
+    const fetchJobData = async () => {
+      try {
+        setLoading(true);
+
+        // 1️⃣ Get job info
+        // const jobRes = await axios.get(`/api/job/${jobId}`);
+        const jobRes = await axios.get(`http://localhost:5000/api/job/${jobId}`);
+
+        setJob(jobRes.data);
+
+        // 2️⃣ Get all phases for this job
+        // const phasesRes = await axios.get(`/api/phase/job/${jobId}`);
+        const phasesRes = await axios.get(`http://localhost:5000/api/phase/job/${jobId}`);
+
+        const phasesData = phasesRes.data;
+
+        const phasesWithCandidates = await Promise.all(
+  phasesData.map(async (phase) => {
+    // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
+        const candidatesRes = await axios.get(`http://localhost:5000/api/phase-candidates/phase/${phase.id}`);
+
+    console.log('Candidates for phase', phase.id, candidatesRes.data);
+
+    const candidates = candidatesRes.data.map(c => ({
+        id: c.id,
+        name: c.candidate_name || 'Unknown',
+        email:c.candidate_email ,
+        score: Number(c.phase_score) || 0,
+        maxScore: 100,
+        cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
+        submittedAt: c.date || null,
+        timeSpent: 'N/A',
+        answers: []
+    }));
+    return { ...phase, candidates, quizSent: phase.quiz_sent || false };
+  })
+);
+
+
+        setPhases(phasesWithCandidates);
+
+        // Default active phase
+        setActivePhase(phasesWithCandidates[0]?.id || null);
+      } catch (err) {
+        console.error('Error fetching job or phase data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobData();
   }, [jobId]);
+
 
   const handleSendAcceptanceClick = () => {
     setModalType('acceptance');
@@ -161,24 +127,76 @@ HR Team`);
   };
 
   const handleCheckbox = (id) => {
-    setSelectedCandidates(prev => 
+    setSelectedCandidates(prev =>
       prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
   };
 
-  const handleSendEmails = () => {
-    setPhases(prev => prev.map(p => 
-      p.id === activePhase ? { ...p, quizSent: true } : p
-    ));
-    setShowModal(false);
-    alert(`${modalType === 'acceptance' ? 'Acceptance mails' : 'Quiz links'} sent to ${selectedCandidates.length} candidates!`);
-  };
+const handleSendEmails = async () => {
+  if (selectedCandidates.length === 0) return;
+
+  try {
+    const currentPhase = phases.find(p => p.id === activePhase);
+
+    if (!currentPhase) {
+      alert('Current phase not found!');
+      return;
+    }
+
+    if (modalType === 'quiz') {
+      // Send quiz links only to selected candidates
+      const response = await axios.post('http://localhost:5000/api/quiz/send-quiz', {
+        jobId: jobId,
+        phaseOrder: currentPhase.phase_order, // <-- USE phase_order here
+        quizLink: 'https://example.com/quiz/' + currentPhase.phase_order,
+        candidateIds: selectedCandidates // <-- selected candidates only
+      });
+
+      alert(`Quiz links sent to ${response.data.count} candidates!`);
+
+      // Mark as sent in frontend
+      setPhases(prev =>
+        prev.map(p => p.id === activePhase ? { ...p, quizSent: true } : p)
+      );
+
+    } else if (modalType === 'acceptance') {
+  const currentPhase = phases.find(p => p.id === activePhase);
+
+  const emails = selectedCandidates.map(id => {
+    const candidate = currentPhase.candidates.find(c => c.id === id);
+    if (!candidate || !candidate.email) return null;
+
+    return {
+      to: candidate.email,
+      subject: `Congratulations ${candidate.name}! You passed Phase ${currentPhase.phase_order}`,
+      body: emailBody
+        .replace('{candidateName}', candidate.name)
+        .replace('{phaseName}', currentPhase.name)
+        .replace('{phaseOrder}', currentPhase.phase_order)
+        .replace('{jobTitle}', job.title)
+    };
+  }).filter(e => e !== null);
+
+  await axios.post('http://localhost:5000/api/send-acceptance', { emails });
+  alert(`Acceptance emails sent to ${emails.length} candidates!`);
+  setShowModal(false);
+}
+
+
+  } 
+  catch (err) {
+    console.error(err);
+    alert('Error sending emails: ' + (err.response?.data?.message || err.message));
+  }
+};
+
+
 
   const togglePhaseStatus = () => {
     const phase = phases.find(p => p.id === activePhase);
     if (phase) {
-      setPhases(prev => prev.map(p => 
-        p.id === phase.id 
+      setPhases(prev => prev.map(p =>
+        p.id === phase.id
           ? { ...p, status: p.status === 'closed' ? 'open' : 'closed' }
           : p
       ));
@@ -196,7 +214,7 @@ HR Team`);
 
   const getSortedCandidates = (candidates) => {
     let sortedCandidates = [...candidates].sort((a, b) => b.score - a.score);
-    
+
     if (rankingOption === 'phase') {
       // Rank by current phase score only
       sortedCandidates = [...candidates].sort((a, b) => b.score - a.score);
@@ -206,10 +224,10 @@ HR Team`);
         ...candidate,
         totalScore: candidate.answers?.reduce((sum, item) => sum + item.score, 0) || candidate.score
       }));
-      
+
       sortedCandidates = [...candidatesWithAllScores].sort((a, b) => b.totalScore - a.totalScore);
     }
-    
+
     return sortedCandidates;
   };
 
@@ -230,7 +248,7 @@ HR Team`);
     return (
       <div className={`page-container ${showModal ? 'blurred' : ''}`}>
         <div className="card" style={{ maxWidth: '900px' }}>
-          <button 
+          <button
             className="back-btn"
             onClick={() => setSelectedCandidate(null)}
             style={{ marginBottom: '20px' }}
@@ -245,13 +263,13 @@ HR Team`);
                 {selectedCandidate.name.split(' ').map(n => n[0]).join('')}
               </div>
               <div>
-                <button 
+                <button
                   className="candidate-name-link"
-                  onClick={() => navigate(`/candidate/${selectedCandidate.id}`, { 
-                    state: { 
+                  onClick={() => navigate(`/candidate/${selectedCandidate.id}`, {
+                    state: {
                       from: 'job-interview-details',
-                      jobId: jobId 
-                    } 
+                      jobId: jobId
+                    }
                   })}
                 >
                   {selectedCandidate.name}
@@ -259,7 +277,7 @@ HR Team`);
                 <p>{selectedCandidate.email}</p>
               </div>
             </div>
-            
+
             <div className="candidate-stats">
               <div className="stat-box">
                 <div className="stat-value">{selectedCandidate?.score || 0}/{selectedCandidate?.maxScore || 0}</div>
@@ -269,7 +287,7 @@ HR Team`);
                 <div className="stat-value">{selectedCandidate?.timeSpent?.replace(' min', '') || '0'}/{selectedCandidate?.phaseTimeLimit?.replace(' minutes', '') || 'N/A'}</div>
                 <div className="stat-label">Time</div>
               </div>
-             
+
             </div>
           </div>
 
@@ -322,7 +340,7 @@ HR Team`);
           <div className="job-details-header">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
               <div>
-                <button 
+                <button
                   className="back-link"
                   onClick={() => navigate('/interviews')}
                 >
@@ -332,14 +350,14 @@ HR Team`);
                 <h1>{job?.title}</h1>
                 <p className="job-meta">{job?.company} • Job #{jobId}</p>
               </div>
-              
+
               {/* Phase Status Controls */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div className="phase-status-toggle">
                   <span className={`status-label ${currentPhase?.status === 'closed' ? 'status-closed' : 'status-open'}`}>
                     {currentPhase?.status === 'closed' ? 'Status: Closed' : 'Status: Open'}
                   </span>
-                  <button 
+                  <button
                     className="toggle-switch"
                     onClick={togglePhaseStatus}
                   >
@@ -350,7 +368,7 @@ HR Team`);
                 {/* Filter Dropdown - Only show when phase is closed */}
                 {currentPhase?.status === 'closed' && (
                   <div className="phase-filter-dropdown">
-                    <button 
+                    <button
                       className="filter-button"
                       onClick={toggleFilter}
                     >
@@ -359,13 +377,13 @@ HR Team`);
                     </button>
                     {showFilter && (
                       <div className="filter-menu">
-                        <button 
+                        <button
                           className="filter-option"
                           onClick={() => handleRankingChange('phase')}
                         >
                           Rank by Phase Score
                         </button>
-                        <button 
+                        <button
                           className="filter-option"
                           onClick={() => handleRankingChange('all')}
                         >
@@ -390,7 +408,7 @@ HR Team`);
                   disabled={phase.status === 'locked'}
                 >
                   <div className="tab-content">
-                    <span className="phase-number">Phase {phase.id}</span>
+                    <span className="phase-number">Phase {phase.phase_order}</span>
                     <span className="phase-name">{phase.name}</span>
                     {phase.quizSent && (
                       <span className="quiz-badge">
@@ -417,13 +435,15 @@ HR Team`);
                     </div>
                     <h3>Send Quiz Links</h3>
                     <p>Select candidates and send them quiz links for this phase.</p>
-                    <button 
-                      className="send-quiz-btn"
-                      onClick={handleSendQuizClick}
-                    >
-                      <Mail size={18} />
-                      Send Quiz Link
-                    </button>
+                    <button
+  className="send-quiz-btn"
+  onClick={handleSendQuizClick}
+  disabled={currentPhase.quizSent} // <-- added
+>
+  <Mail size={18} />
+  Send Quiz Link
+</button>
+
                   </div>
                 </div>
               ) : (
@@ -438,17 +458,17 @@ HR Team`);
 
                   <div className="candidates-list">
                     {getSortedCandidates(currentPhase.candidates).map((candidate, index) => (
-                      <div 
-                        key={candidate.id} 
+                      <div
+                        key={candidate.id}
                         className="candidate-result-card"
                         onClick={() => setSelectedCandidate(candidate)}
                       >
                         <div className="candidate-rank">#{index + 1}</div>
-                        
+
                         <div className="candidate-avatar">
                           {candidate.name.split(' ').map(n => n[0]).join('')}
                         </div>
-                        
+
                         <div className="candidate-details">
                           <div className="candidate-name">{candidate.name}</div>
                           <div className="candidate-email">{candidate.email}</div>
@@ -486,7 +506,7 @@ HR Team`);
                         </div>
                         <h3>Send Acceptance Mail</h3>
                         <p>Select candidates to send acceptance emails for this phase.</p>
-                        <button 
+                        <button
                           className="send-acceptance-btn centered"
                           onClick={handleSendAcceptanceClick}
                         >
@@ -509,9 +529,9 @@ HR Team`);
           <div className="modal-container" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>
-                {modalStep === 1 
-                  ? modalType === 'acceptance' 
-                    ? 'Select Candidates for Acceptance Mail' 
+                {modalStep === 1
+                  ? modalType === 'acceptance'
+                    ? 'Select Candidates for Acceptance Mail'
                     : 'Select Candidates for Quiz'
                   : modalType === 'acceptance'
                     ? 'Compose Acceptance Email'
@@ -579,7 +599,7 @@ HR Team`);
               ) : (
                 <>
                   <p className="mail-info">
-                    {modalType === 'acceptance' 
+                    {modalType === 'acceptance'
                       ? `Sending acceptance mail to ${selectedCandidates.length} candidates`
                       : `Sending quiz link to ${selectedCandidates.length} candidates`
                     }

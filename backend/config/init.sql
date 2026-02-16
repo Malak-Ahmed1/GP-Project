@@ -65,6 +65,8 @@ CREATE TABLE phase (
     available BOOLEAN DEFAULT TRUE,
     num_questions INTEGER,
     severity INTEGER,
+    quiz_sent BOOLEAN DEFAULT FALSE,  -- <-- default is FALSE
+
     end_date DATE,
     link VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -109,3 +111,9 @@ CREATE TABLE candidate_answer_details (
     score NUMERIC(5,2),
     answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
+
+ALTER TABLE job
+ADD COLUMN company VARCHAR(255);
