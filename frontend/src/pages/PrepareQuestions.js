@@ -18,43 +18,18 @@ function PrepareQuestions() {
 useEffect(() => {
   setLoading(true);
 
-  console.log("DEBUG: jobId received from Dashboard:", jobId);
+  Promise.all([
+    API.get(`/job/${jobId}`),
+    API.get(`/phase/job/${jobId}`),
+    API.get(`/questions/job/${jobId}`)
+  ])
+    .then(([jobRes, phaseRes, questionsRes]) => {
+      const jobData = jobRes.data;
+      setJob(jobData);
 
-  // Fetch job info
-  API.get(`/job/${jobId}`)
-    .then(res => {
-      console.log("DEBUG: Job data fetched:", res.data);
-      setJob(res.data);
-    })
-    .catch(err => {
-      console.error("DEBUG: Error fetching job:", err);
-      setJob({ id: jobId, title: "Job" });
-    });
-
-  // Fetch phases for this job
-  API.get(`/phase/job/${jobId}`)
-    .then(res => {
-      console.log("DEBUG: Phases fetched:", res.data);
-      const fetchedPhases = res.data.map(phase => ({
-        ...phase,
-        generatedQuestions: [],
-        isEditingName: false,
-        jobDescription: "" // <-- Add this line
-
-      }));
-      setPhases(fetchedPhases);
-
-      if (fetchedPhases.length > 0) setActivePhase(fetchedPhases[0].id);
-    })
-    .catch(err => console.error("DEBUG: Error fetching phases:", err));
-
-  // Fetch questions for this job
-  API.get(`/questions/job/${jobId}`)
-    .then(res => {
-      console.log("DEBUG: Questions fetched:", res.data);
+      // Map questions by phase
       const questionsByPhase = {};
-
-      res.data.forEach(q => {
+      questionsRes.data.forEach(q => {
         if (!questionsByPhase[q.phase_id]) questionsByPhase[q.phase_id] = [];
         questionsByPhase[q.phase_id].push({
           id: q.id,
@@ -66,16 +41,29 @@ useEffect(() => {
         });
       });
 
-      setPhases(prev =>
-        prev.map(phase => ({
-          ...phase,
-          generatedQuestions: questionsByPhase[phase.id] || []
-        }))
-      );
-    })
-    .catch(err => console.error("DEBUG: Error fetching questions:", err))
-    .finally(() => setLoading(false));
+      // Map severity numbers to strings
+      const difficultyMapReverse = { 1: "easy", 2: "medium", 3: "hard", 4: "mixed" };
 
+      // Merge questions and backend fields into phases
+      const fetchedPhases = phaseRes.data.map(phase => ({
+        ...phase,
+        generatedQuestions: questionsByPhase[phase.id] || [],
+        isEditingName: false,
+        jobDescription: jobData.job_desc || "",
+
+        // Map backend fields to frontend fields
+        numberOfQuestions: phase.num_questions || 5,         // <-- number of questions
+        interviewTime: phase.time_limit || 30,              // <-- time limit
+        difficultyLevel: difficultyMapReverse[phase.severity] || "easy", // <-- severity
+        closeDate: phase.end_date || ""                     // <-- close date
+      }));
+
+      setPhases(fetchedPhases);
+
+      if (fetchedPhases.length > 0) setActivePhase(fetchedPhases[0].id);
+    })
+    .catch(err => console.error("Error fetching job/phases/questions:", err))
+    .finally(() => setLoading(false));
 }, [jobId]);
 
 
@@ -94,20 +82,56 @@ useEffect(() => {
 
 
 
- const createPhase = () => {
-  API.post("/phase", { job_id: jobId })
+const createPhase = () => {
+  const currentPhase = phases.find(p => p.id === activePhase) || {};
+
+  // Map difficulty string to integer (matches your DB)
+  const difficultyMap = {
+    easy: 1,
+    medium: 2,
+    hard: 3,
+    mixed: 4
+  };
+
+  const phaseData = {
+    job_id: jobId,
+    time_limit: Number(currentPhase.interviewTime) || 30,
+    num_questions: Number(currentPhase.numberOfQuestions) || 5,
+    severity: difficultyMap[currentPhase.difficultyLevel || "easy"], // <-- mapped to integer
+    end_date: currentPhase.closeDate || null,
+    method: "quiz",
+    ranked: false,
+    available: true,
+    link: null
+  };
+
+  console.log("DEBUG: Sending phaseData:", phaseData);
+
+  API.post("/phase", phaseData)
     .then(res => {
+      const phase = res.data.phase;
+
       const newPhase = {
-        ...res.data.phase,
+        ...phase,
         generatedQuestions: [],
         isEditingName: false,
-        jobDescription: job?.job_desc || "" // <-- Add this line
-
+        interviewTime: phase.time_limit,
+        numberOfQuestions: phase.num_questions,
+        difficultyLevel: currentPhase.difficultyLevel || "easy", // keep string for frontend
+        closeDate: phase.end_date,
+        jobDescription: job?.job_desc || ""
       };
-      setPhases([...phases, newPhase]);
+
+      setPhases(prev => [...prev, newPhase]);
       setActivePhase(newPhase.id);
+
+      console.log("Phase created successfully:", newPhase);
+    })
+    .catch(err => {
+      console.error("Error creating phase:", err.response?.data || err);
     });
 };
+
 
 
   // Update phase
@@ -376,6 +400,25 @@ const addAllCustomQuestions = async (phaseId) => {
         isCustom: true
       });
     }
+
+
+       // **Update phase info in backend**
+    const difficultyMap = {
+      easy: 1,
+      medium: 2,
+      hard: 3,
+      mixed: 4
+    };
+
+    const updatedPhaseData = {
+      num_questions: phase.numberOfQuestions,
+      time_limit: phase.interviewTime,
+      severity: difficultyMap[phase.difficultyLevel || "easy"],
+      end_date: phase.closeDate
+    };
+
+    await API.put(`/phase/${phaseId}`, updatedPhaseData);
+    console.log("DEBUG: Phase updated in backend", updatedPhaseData);
 
    setPhases(prevPhases =>
   prevPhases.map(p => {

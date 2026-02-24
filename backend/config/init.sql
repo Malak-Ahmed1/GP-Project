@@ -49,6 +49,8 @@ CREATE TABLE job_application (
     score_cv NUMERIC(5,2),
     cgpa NUMERIC(4,2) DEFAULT 0,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    passed BOOLEAN DEFAULT FALSE,
+
     UNIQUE(job_id, candidate_id)
 );
 
@@ -117,3 +119,6 @@ CREATE TABLE candidate_answer_details (
 
 ALTER TABLE job
 ADD COLUMN company VARCHAR(255);
+
+ALTER TABLE job_application
+ADD COLUMN passed BOOLEAN DEFAULT FALSE;

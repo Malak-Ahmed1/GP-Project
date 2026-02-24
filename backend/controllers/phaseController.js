@@ -51,6 +51,41 @@ exports.createPhase = async (req, res) => {
   }
 };
 
+
+// Update phase info
+exports.updatePhase = async (req, res) => {
+  try {
+    const { phaseId } = req.params;
+    const { time_limit, num_questions, severity, end_date } = req.body;
+
+    // Update only the fields provided
+    const result = await pool.query(
+      `UPDATE phase
+       SET time_limit = COALESCE($1, time_limit),
+           num_questions = COALESCE($2, num_questions),
+           severity = COALESCE($3, severity),
+           end_date = COALESCE($4, end_date)
+       WHERE id = $5
+       RETURNING *`,
+      [time_limit, num_questions, severity, end_date, phaseId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Phase not found" });
+    }
+
+    res.json({ message: "Phase updated", phase: result.rows[0] });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+
+
+
+
+
 // Get all phases
 exports.getPhases = async (req, res) => {
   try {
@@ -155,8 +190,3 @@ exports.deletePhaseForce = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
-
-
-
-
-

@@ -47,21 +47,23 @@ function JobInterviewDetails() {
         const phasesWithCandidates = await Promise.all(
   phasesData.map(async (phase) => {
     // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
-        const candidatesRes = await axios.get(`http://localhost:5000/api/phase-candidates/phase/${phase.id}`);
-
+const candidatesRes = await axios.get(
+  `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
+);
     console.log('Candidates for phase', phase.id, candidatesRes.data);
 
     const candidates = candidatesRes.data.map(c => ({
-        id: c.id,
-        name: c.candidate_name || 'Unknown',
-        email:c.candidate_email ,
-        score: Number(c.phase_score) || 0,
-        maxScore: 100,
-        cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
-        submittedAt: c.date || null,
-        timeSpent: 'N/A',
-        answers: []
-    }));
+    id: c.candidate_id || c.id,                // Replace id mapping
+    name: c.candidate_name || c.name || 'Unknown',
+    email: c.candidate_email || c.email || '',
+    job_application_id: c.job_application_id,  // ADD this line
+    score: Number(c.phase_score) || 0,
+    maxScore: 100,
+    cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
+    submittedAt: c.date || null,
+    timeSpent: 'N/A',
+    answers: []
+}));
     return { ...phase, candidates, quizSent: phase.quiz_sent || false };
   })
 );
@@ -144,22 +146,36 @@ const handleSendEmails = async () => {
     }
 
     if (modalType === 'quiz') {
-      // Send quiz links only to selected candidates
-      const response = await axios.post('http://localhost:5000/api/quiz/send-quiz', {
-        jobId: jobId,
-        phaseOrder: currentPhase.phase_order, // <-- USE phase_order here
-        quizLink: 'https://example.com/quiz/' + currentPhase.phase_order,
-        candidateIds: selectedCandidates // <-- selected candidates only
-      });
+  const currentPhase = phases.find(p => p.id === activePhase);
 
-      alert(`Quiz links sent to ${response.data.count} candidates!`);
+  if (!currentPhase) return alert('Current phase not found!');
 
-      // Mark as sent in frontend
-      setPhases(prev =>
-        prev.map(p => p.id === activePhase ? { ...p, quizSent: true } : p)
-      );
+  // Get jobApplicationIds from selected candidates
+  const jobApplicationIds = selectedCandidates.map(id => {
+    const candidate = currentPhase.candidates.find(c => c.id === id);
+    return candidate.job_application_id; // <-- make sure you have this in your frontend
+  });
 
-    } else if (modalType === 'acceptance') {
+const response = await axios.post(
+  "http://localhost:5000/api/quiz/assign-and-send",
+  {
+    phase_id: currentPhase.id,
+    phaseOrder: currentPhase.phase_order,
+    jobId: jobId,
+    jobApplicationIds,
+    quizLink: `https://example.com/quiz/${currentPhase.phase_order}`
+  }
+);
+
+  alert(response.data.message);
+
+  // Update frontend state
+  setPhases(prev =>
+    prev.map(p => p.id === activePhase ? { ...p, quizSent: true } : p)
+  );
+
+  setShowModal(false);
+} else if (modalType === 'acceptance') {
   const currentPhase = phases.find(p => p.id === activePhase);
 
   const emails = selectedCandidates.map(id => {
