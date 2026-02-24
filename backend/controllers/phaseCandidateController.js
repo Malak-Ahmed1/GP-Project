@@ -66,31 +66,80 @@ ORDER BY pc.id ASC
   }
 };
 
-// Update phase candidate (score, passed, cheating_flag)
-exports.updatePhaseCandidate = async (req, res) => {
+// Update phase candidate score and CGPA based on previous phase only
+exports.updatePhaseCandidateWithCGPA = async (req, res) => {
   try {
     const { id } = req.params;
-    const { phase_score, passed, cheating_flag, video_url } = req.body;
+    let { phase_score, passed, cheating_flag, video_url } = req.body;
 
-    const result = await pool.query(
+    // Ensure phase_score is a number
+    phase_score = parseFloat(phase_score) || 0;
+
+    // 1️⃣ Get the phase candidate info along with job_application_id and phase_id
+    const candidateRes = await pool.query(
+      `SELECT pc.*, ja.cgpa AS current_cgpa, ja.id AS job_application_id
+       FROM phase_candidates pc
+       JOIN job_application ja ON pc.job_application_id = ja.id
+       WHERE pc.id = $1`,
+      [id]
+    );
+
+    if (candidateRes.rows.length === 0) {
+      return res.status(404).json({ error: "Phase candidate not found." });
+    }
+
+    const candidate = candidateRes.rows[0];
+
+    // 2️⃣ Get previous phase CGPA (highest phase < current)
+    const previousPhaseRes = await pool.query(
+      `SELECT cgpa_phase_score
+       FROM phase_candidates
+       WHERE job_application_id = $1 AND phase_id < $2
+       ORDER BY phase_id DESC
+       LIMIT 1`,
+      [candidate.job_application_id, candidate.phase_id]
+    );
+
+    // If no previous phase, previous CGPA = 0
+    const previousCGPA = previousPhaseRes.rows.length > 0
+      ? parseFloat(previousPhaseRes.rows[0].cgpa_phase_score) || 0
+      : 0;
+
+    // 3️⃣ New CGPA = previous phase CGPA + current phase_score
+    const newCGPA = previousCGPA + phase_score;
+
+    // 4️⃣ Update phase candidate
+    const updatePhase = await pool.query(
       `UPDATE phase_candidates
        SET phase_score = $1,
            passed = $2,
            cheating_flag = $3,
-           video_url = $4
-       WHERE id = $5
+           video_url = $4,
+           cgpa_phase_score = $5
+       WHERE id = $6
        RETURNING *`,
-      [phase_score, passed, cheating_flag, video_url, id]
+      [phase_score, passed, cheating_flag, video_url, newCGPA, id]
     );
 
-    if (result.rows.length === 0) return res.status(404).json({ error: "Phase candidate not found." });
+    // 5️⃣ Update job_application CGPA
+    await pool.query(
+      `UPDATE job_application
+       SET cgpa = $1
+       WHERE id = $2`,
+      [newCGPA, candidate.job_application_id]
+    );
 
-    res.json({ message: "Phase candidate updated successfully", phase_candidate: result.rows[0] });
+    res.json({
+      message: "Phase score and cumulative CGPA updated successfully",
+      phase_candidate: updatePhase.rows[0],
+      new_cgpa: newCGPA
+    });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 };
-
 // Delete phase candidate
 exports.deletePhaseCandidate = async (req, res) => {
   try {

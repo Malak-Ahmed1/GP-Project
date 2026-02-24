@@ -47,9 +47,18 @@ function JobInterviewDetails() {
         const phasesWithCandidates = await Promise.all(
   phasesData.map(async (phase) => {
     // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
-const candidatesRes = await axios.get(
-  `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
-);
+let candidatesRes;
+if (phase.quiz_sent) {
+  // Fetch only candidates already assigned to this phase
+  candidatesRes = await axios.get(
+    `http://localhost:5000/api/phase-candidates/phase/${phase.id}`
+  );
+} else {
+  // Fetch all eligible candidates for this phase
+  candidatesRes = await axios.get(
+    `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
+  );
+}
     console.log('Candidates for phase', phase.id, candidatesRes.data);
 
     const candidates = candidatesRes.data.map(c => ({
@@ -169,11 +178,18 @@ const response = await axios.post(
 
   alert(response.data.message);
 
-  // Update frontend state
-  setPhases(prev =>
-    prev.map(p => p.id === activePhase ? { ...p, quizSent: true } : p)
-  );
-
+ // Update frontend state to mark quiz sent AND show only selected candidates
+setPhases(prev =>
+  prev.map(p =>
+    p.id === activePhase
+      ? {
+          ...p,
+          quizSent: true,
+          candidates: p.candidates.filter(c => selectedCandidates.includes(c.id))
+        }
+      : p
+  )
+);
   setShowModal(false);
 } else if (modalType === 'acceptance') {
   const currentPhase = phases.find(p => p.id === activePhase);

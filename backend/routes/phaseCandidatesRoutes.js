@@ -4,7 +4,7 @@ const router = express.Router();
 const {
   assignCandidateToPhase,
   getPhaseCandidates,
-  updatePhaseCandidate,
+  updatePhaseCandidateWithCGPA,
   deletePhaseCandidate
 } = require("../controllers/phaseCandidateController");
 
@@ -15,7 +15,7 @@ router.post("/", assignCandidateToPhase);
 router.get("/phase/:phaseId", getPhaseCandidates);
 
 // Update a phase candidate (e.g., score, pass status)
-router.put("/:id", updatePhaseCandidate);
+router.put("/:id", updatePhaseCandidateWithCGPA);
 
 // Delete a phase candidate
 router.delete("/:id", deletePhaseCandidate);
