@@ -20,9 +20,8 @@ function JobInterviewDetails() {
 
   // Filter and Ranking states
   const [showFilter, setShowFilter] = useState(false);
-  const [rankingOption, setRankingOption] = useState('all');
+  const [rankingOption, setRankingOption] = useState({});  // now per phase
 
-  // Candidate detail view
   const [selectedCandidate, setSelectedCandidate] = useState(null);
 
 
@@ -45,37 +44,39 @@ function JobInterviewDetails() {
         const phasesData = phasesRes.data;
 
         const phasesWithCandidates = await Promise.all(
-  phasesData.map(async (phase) => {
-    // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
-let candidatesRes;
-if (phase.quiz_sent) {
-  // Fetch only candidates already assigned to this phase
-  candidatesRes = await axios.get(
-    `http://localhost:5000/api/phase-candidates/phase/${phase.id}`
-  );
-} else {
-  // Fetch all eligible candidates for this phase
-  candidatesRes = await axios.get(
-    `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
-  );
-}
-    console.log('Candidates for phase', phase.id, candidatesRes.data);
+          phasesData.map(async (phase) => {
+            // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
+            let candidatesRes;
+            if (phase.quiz_sent) {
+              // Fetch only candidates already assigned to this phase
+              candidatesRes = await axios.get(
+                `http://localhost:5000/api/phase-candidates/phase/${phase.id}`
+              );
+            } else {
+              // Fetch all eligible candidates for this phase
+              candidatesRes = await axios.get(
+                `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
+              );
+            }
+            console.log('Candidates for phase', phase.id, candidatesRes.data);
 
-    const candidates = candidatesRes.data.map(c => ({
-    id: c.candidate_id || c.id,                // Replace id mapping
-    name: c.candidate_name || c.name || 'Unknown',
-    email: c.candidate_email || c.email || '',
-    job_application_id: c.job_application_id,  // ADD this line
-    score: Number(c.phase_score) || 0,
-    maxScore: 100,
-    cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
-    submittedAt: c.date || null,
-    timeSpent: 'N/A',
-    answers: []
-}));
-    return { ...phase, candidates, quizSent: phase.quiz_sent || false };
-  })
-);
+            const candidates = candidatesRes.data.map(c => ({
+              id: c.candidate_id || c.id,                // Replace id mapping
+              name: c.candidate_name || c.name || 'Unknown',
+              email: c.candidate_email || c.email || '',
+              job_application_id: c.job_application_id,  // ADD this line
+              score: Number(c.phase_score) || 0,
+              cgpa_phase_score: Number(c.cgpa_phase_score) || 0,
+
+              maxScore: 100,
+              cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
+              submittedAt: c.date || null,
+              timeSpent: 'N/A',
+              answers: []
+            }));
+            return { ...phase, candidates, quizSent: phase.quiz_sent || false };
+          })
+        );
 
 
         setPhases(phasesWithCandidates);
@@ -91,6 +92,14 @@ if (phase.quiz_sent) {
 
     fetchJobData();
   }, [jobId]);
+
+
+  useEffect(() => {
+    const savedRanking = localStorage.getItem('rankingOption');
+    if (savedRanking) {
+      setRankingOption(JSON.parse(savedRanking));
+    }
+  }, []);
 
 
   const handleSendAcceptanceClick = () => {
@@ -143,84 +152,84 @@ HR Team`);
     );
   };
 
-const handleSendEmails = async () => {
-  if (selectedCandidates.length === 0) return;
+  const handleSendEmails = async () => {
+    if (selectedCandidates.length === 0) return;
 
-  try {
-    const currentPhase = phases.find(p => p.id === activePhase);
+    try {
+      const currentPhase = phases.find(p => p.id === activePhase);
 
-    if (!currentPhase) {
-      alert('Current phase not found!');
-      return;
+      if (!currentPhase) {
+        alert('Current phase not found!');
+        return;
+      }
+
+      if (modalType === 'quiz') {
+        const currentPhase = phases.find(p => p.id === activePhase);
+
+        if (!currentPhase) return alert('Current phase not found!');
+
+        // Get jobApplicationIds from selected candidates
+        const jobApplicationIds = selectedCandidates.map(id => {
+          const candidate = currentPhase.candidates.find(c => c.id === id);
+          return candidate.job_application_id; // <-- make sure you have this in your frontend
+        });
+
+        const response = await axios.post(
+          "http://localhost:5000/api/quiz/assign-and-send",
+          {
+            phase_id: currentPhase.id,
+            phaseOrder: currentPhase.phase_order,
+            jobId: jobId,
+            jobApplicationIds,
+            quizLink: `https://example.com/quiz/${currentPhase.phase_order}`
+          }
+        );
+
+        alert(response.data.message);
+
+        // Update frontend state to mark quiz sent AND show only selected candidates
+        setPhases(prev =>
+          prev.map(p =>
+            p.id === activePhase
+              ? {
+                ...p,
+                quizSent: true,
+                candidates: p.candidates.filter(c => selectedCandidates.includes(c.id))
+              }
+              : p
+          )
+        );
+        setShowModal(false);
+      } else if (modalType === 'acceptance') {
+        const currentPhase = phases.find(p => p.id === activePhase);
+
+        const emails = selectedCandidates.map(id => {
+          const candidate = currentPhase.candidates.find(c => c.id === id);
+          if (!candidate || !candidate.email) return null;
+
+          return {
+            to: candidate.email,
+            subject: `Congratulations ${candidate.name}! You passed Phase ${currentPhase.phase_order}`,
+            body: emailBody
+              .replace('{candidateName}', candidate.name)
+              .replace('{phaseName}', currentPhase.name)
+              .replace('{phaseOrder}', currentPhase.phase_order)
+              .replace('{jobTitle}', job.title)
+          };
+        }).filter(e => e !== null);
+
+        await axios.post('http://localhost:5000/api/send-acceptance', { emails });
+        alert(`Acceptance emails sent to ${emails.length} candidates!`);
+        setShowModal(false);
+      }
+
+
     }
-
-    if (modalType === 'quiz') {
-  const currentPhase = phases.find(p => p.id === activePhase);
-
-  if (!currentPhase) return alert('Current phase not found!');
-
-  // Get jobApplicationIds from selected candidates
-  const jobApplicationIds = selectedCandidates.map(id => {
-    const candidate = currentPhase.candidates.find(c => c.id === id);
-    return candidate.job_application_id; // <-- make sure you have this in your frontend
-  });
-
-const response = await axios.post(
-  "http://localhost:5000/api/quiz/assign-and-send",
-  {
-    phase_id: currentPhase.id,
-    phaseOrder: currentPhase.phase_order,
-    jobId: jobId,
-    jobApplicationIds,
-    quizLink: `https://example.com/quiz/${currentPhase.phase_order}`
-  }
-);
-
-  alert(response.data.message);
-
- // Update frontend state to mark quiz sent AND show only selected candidates
-setPhases(prev =>
-  prev.map(p =>
-    p.id === activePhase
-      ? {
-          ...p,
-          quizSent: true,
-          candidates: p.candidates.filter(c => selectedCandidates.includes(c.id))
-        }
-      : p
-  )
-);
-  setShowModal(false);
-} else if (modalType === 'acceptance') {
-  const currentPhase = phases.find(p => p.id === activePhase);
-
-  const emails = selectedCandidates.map(id => {
-    const candidate = currentPhase.candidates.find(c => c.id === id);
-    if (!candidate || !candidate.email) return null;
-
-    return {
-      to: candidate.email,
-      subject: `Congratulations ${candidate.name}! You passed Phase ${currentPhase.phase_order}`,
-      body: emailBody
-        .replace('{candidateName}', candidate.name)
-        .replace('{phaseName}', currentPhase.name)
-        .replace('{phaseOrder}', currentPhase.phase_order)
-        .replace('{jobTitle}', job.title)
-    };
-  }).filter(e => e !== null);
-
-  await axios.post('http://localhost:5000/api/send-acceptance', { emails });
-  alert(`Acceptance emails sent to ${emails.length} candidates!`);
-  setShowModal(false);
-}
-
-
-  } 
-  catch (err) {
-    console.error(err);
-    alert('Error sending emails: ' + (err.response?.data?.message || err.message));
-  }
-};
+    catch (err) {
+      console.error(err);
+      alert('Error sending emails: ' + (err.response?.data?.message || err.message));
+    }
+  };
 
 
 
@@ -240,24 +249,25 @@ setPhases(prev =>
   };
 
   const handleRankingChange = (option) => {
-    setRankingOption(option);
+    setRankingOption(prev => {
+      const newRanking = { ...prev, [activePhase]: option };
+      localStorage.setItem('rankingOption', JSON.stringify(newRanking)); // persist
+      return newRanking;
+    });
     setShowFilter(false);
   };
 
-  const getSortedCandidates = (candidates) => {
-    let sortedCandidates = [...candidates].sort((a, b) => b.score - a.score);
 
-    if (rankingOption === 'phase') {
-      // Rank by current phase score only
-      sortedCandidates = [...candidates].sort((a, b) => b.score - a.score);
-    } else if (rankingOption === 'all') {
-      // Rank by all phase scores (sum of scores across all phases)
-      const candidatesWithAllScores = candidates.map(candidate => ({
-        ...candidate,
-        totalScore: candidate.answers?.reduce((sum, item) => sum + item.score, 0) || candidate.score
-      }));
+  const getSortedCandidates = (candidates, phaseId) => {
+    if (!candidates) return [];
 
-      sortedCandidates = [...candidatesWithAllScores].sort((a, b) => b.totalScore - a.totalScore);
+    const sortedCandidates = [...candidates];
+    const option = rankingOption[phaseId] || 'phase_score'; // default if not set
+
+    if (option === 'phase_score') {
+      sortedCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
+    } else if (option === 'cgpa') {
+      sortedCandidates.sort((a, b) => (b.cgpa_phase_score || 0) - (a.cgpa_phase_score || 0));
     }
 
     return sortedCandidates;
@@ -411,15 +421,15 @@ setPhases(prev =>
                       <div className="filter-menu">
                         <button
                           className="filter-option"
-                          onClick={() => handleRankingChange('phase')}
+                          onClick={() => handleRankingChange('phase_score')}
                         >
                           Rank by Phase Score
                         </button>
                         <button
                           className="filter-option"
-                          onClick={() => handleRankingChange('all')}
+                          onClick={() => handleRankingChange('cgpa')}
                         >
-                          Rank by All Phase Scores
+                          Rank by CGPA
                         </button>
                       </div>
                     )}
@@ -468,13 +478,13 @@ setPhases(prev =>
                     <h3>Send Quiz Links</h3>
                     <p>Select candidates and send them quiz links for this phase.</p>
                     <button
-  className="send-quiz-btn"
-  onClick={handleSendQuizClick}
-  disabled={currentPhase.quizSent} // <-- added
->
-  <Mail size={18} />
-  Send Quiz Link
-</button>
+                      className="send-quiz-btn"
+                      onClick={handleSendQuizClick}
+                      disabled={currentPhase.quizSent} // <-- added
+                    >
+                      <Mail size={18} />
+                      Send Quiz Link
+                    </button>
 
                   </div>
                 </div>
@@ -486,15 +496,14 @@ setPhases(prev =>
                     <span className="results-count">
                       {currentPhase.candidates.length} candidates
                     </span>
+                    <div className="ranking-label">
+                      Ranking by: {rankingOption[currentPhase.id] === 'cgpa' ? 'CGPA' : 'Phase Score'}
+                    </div>
                   </div>
 
                   <div className="candidates-list">
-                    {getSortedCandidates(currentPhase.candidates).map((candidate, index) => (
-                      <div
-                        key={candidate.id}
-                        className="candidate-result-card"
-                        onClick={() => setSelectedCandidate(candidate)}
-                      >
+                    {getSortedCandidates(currentPhase.candidates, currentPhase.id).map((candidate, index) => (
+                      <div key={candidate.id} className="candidate-result-card" onClick={() => setSelectedCandidate(candidate)}>
                         <div className="candidate-rank">#{index + 1}</div>
 
                         <div className="candidate-avatar">
@@ -514,7 +523,7 @@ setPhases(prev =>
 
                         <div className="candidate-score-section">
                           <div className={`score-circle ${candidate.score >= 80 ? 'high' : candidate.score >= 60 ? 'medium' : 'low'}`}>
-                            {candidate.score}%
+                            {rankingOption[currentPhase.id] === 'cgpa' ? candidate.cgpa_phase_score : candidate.score}%
                           </div>
                           {candidate.submittedAt && (
                             <div className="submitted-time">

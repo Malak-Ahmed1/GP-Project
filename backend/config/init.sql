@@ -83,6 +83,7 @@ CREATE TABLE phase_candidates (
     phase_id INTEGER NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
     job_application_id INTEGER NOT NULL REFERENCES job_application(id) ON DELETE CASCADE,
     phase_score NUMERIC(5,2),
+    cgpa_phase_score NUMERIC(5,2),
     passed BOOLEAN DEFAULT FALSE,
     cheating_flag BOOLEAN DEFAULT FALSE,
     video_url TEXT,
