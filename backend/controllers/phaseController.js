@@ -163,34 +163,106 @@ exports.deletePhaseSafe = async (req, res) => {
 
 };
 
-
-// ----- FORCE DELETE: Delete phase along with all its questions and related data -----
 exports.deletePhaseForce = async (req, res) => {
+  const client = await pool.connect();
+
   try {
     const { phaseId } = req.params;
 
     console.log("FORCE DELETE phase:", phaseId);
 
-    // check if phase exists
-    const check = await pool.query("SELECT * FROM phase WHERE id = $1", [phaseId]);
+    await client.query("BEGIN");
 
-    if (check.rows.length === 0) {
+    // 1️⃣ check if phase exists
+    const phaseRes = await client.query(
+      "SELECT * FROM phase WHERE id = $1",
+      [phaseId]
+    );
+
+    if (phaseRes.rows.length === 0) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ error: "Phase not found" });
     }
 
-    // delete phase -> cascades to questions and dependent tables
-    await pool.query("DELETE FROM phase WHERE id = $1", [phaseId]);
+    const phase = phaseRes.rows[0];
+    const jobId = phase.job_id;
+    const phaseOrder = phase.phase_order;
+
+    // 2️⃣ Get scores of this phase for all candidates
+    const scoresRes = await client.query(
+      `SELECT job_application_id, phase_score
+       FROM phase_candidates
+       WHERE phase_id = $1`,
+      [phaseId]
+    );
+
+    const scores = scoresRes.rows;
+
+    // 3️⃣ Subtract from job_application.cgpa
+    for (const row of scores) {
+
+      await client.query(
+        `UPDATE job_application
+         SET cgpa = cgpa - $1
+         WHERE id = $2`,
+        [row.phase_score || 0, row.job_application_id]
+      );
+
+    }
+
+    // 4️⃣ Get all later phases
+    const laterPhasesRes = await client.query(
+      `SELECT id
+       FROM phase
+       WHERE job_id = $1
+       AND phase_order > $2`,
+      [jobId, phaseOrder]
+    );
+
+    const laterPhaseIds = laterPhasesRes.rows.map(p => p.id);
+
+    // 5️⃣ Subtract from cgpa_phase_score in later phases
+    for (const row of scores) {
+
+      await client.query(
+        `UPDATE phase_candidates
+         SET cgpa_phase_score = cgpa_phase_score - $1
+         WHERE job_application_id = $2
+         AND phase_id = ANY($3::int[])`,
+        [
+          row.phase_score || 0,
+          row.job_application_id,
+          laterPhaseIds
+        ]
+      );
+
+    }
+
+    // 6️⃣ Delete the phase (cascade deletes phase_candidates automatically)
+    await client.query(
+      "DELETE FROM phase WHERE id = $1",
+      [phaseId]
+    );
+
+    await client.query("COMMIT");
 
     res.json({
-      message: "Phase and all its questions deleted successfully (force delete)"
+      message: "Phase force deleted and CGPA updated correctly"
     });
 
   } catch (err) {
+
+    await client.query("ROLLBACK");
+
     console.error(err);
     res.status(500).json({ error: err.message });
+
+  } finally {
+
+    client.release();
+
   }
 };
-
 
 
 

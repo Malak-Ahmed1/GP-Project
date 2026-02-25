@@ -63,8 +63,10 @@ function JobInterviewDetails() {
             const candidates = candidatesRes.data.map(c => ({
               id: c.candidate_id || c.id,                // Replace id mapping
               name: c.candidate_name || c.name || 'Unknown',
-                phase_candidate_id: c.id,  // ✅ ADD THIS LINE
-
+              // VERY IMPORTANT FIX
+              phase_candidate_id:
+                c.phase_candidate_id ||
+                c.id,
               email: c.candidate_email || c.email || '',
               job_application_id: c.job_application_id,  // ADD this line
               score: Number(c.phase_score) || 0,
@@ -76,10 +78,11 @@ function JobInterviewDetails() {
               timeSpent: 'N/A',
               answers: []
             }));
-            return { ...phase, candidates, quizSent: phase.quiz_sent || false,
-                acceptanceSent: phase.acceptance_sent || false   
+            return {
+              ...phase, candidates, quizSent: phase.quiz_sent || false,
+              acceptanceSent: phase.acceptance_sent || false
 
-             };
+            };
           })
         );
 
@@ -105,44 +108,45 @@ function JobInterviewDetails() {
       setRankingOption(JSON.parse(savedRanking));
     }
   }, []);
+  const handleCandidateClick = async (candidate) => {
+    try {
+      console.log("Clicked candidate:", candidate);
+      console.log("phase_candidate_id:", candidate.phase_candidate_id);
+      // Use phase_candidate_id here (NOT candidate.id)
+      const res = await axios.get(
+        `http://localhost:5000/api/candidate-answer/phase-candidate/${candidate.phase_candidate_id}`
+      );
+      console.log("API response:", res.data);
+      const answers = res.data.map(a => ({
+        id: a.id,
+        question: a.ques_text,
+        rawAnswer: a.raw_answer,
+        polishedAnswer: a.polished_answer,
+        answer: a.polished_answer || a.raw_answer,
+        idealAnswer: a.correct_answer,
+        score: a.score,
+        maxScore: 100
+      }));
 
-const handleCandidateClick = async (candidate) => {
-  try {
-    // Use phase_candidate_id here (NOT candidate.id)
-    const res = await axios.get(
-      `http://localhost:5000/api/candidate-answer/phase-candidate/${candidate.phase_candidate_id}`
-    );
+      setSelectedCandidate({ ...candidate, answers });
+    } catch (err) {
+      console.error("Error fetching candidate answers:", err);
+      alert("Failed to load candidate answers");
+    }
+  };
+  const handleSendAcceptanceClick = () => {
+    const currentPhase = phases.find(p => p.id === activePhase);
 
-    const answers = res.data.map(a => ({
-      id: a.id,
-      question: a.ques_text,
-      rawAnswer: a.raw_answer,
-      polishedAnswer: a.polished_answer,
-      answer: a.polished_answer || a.raw_answer,
-      idealAnswer: a.correct_answer,
-      score: a.score,
-      maxScore: 100
-    }));
+    if (!currentPhase) return;
 
-    setSelectedCandidate({ ...candidate, answers });
-  } catch (err) {
-    console.error("Error fetching candidate answers:", err);
-    alert("Failed to load candidate answers");
-  }
-};
-const handleSendAcceptanceClick = () => {
-  const currentPhase = phases.find(p => p.id === activePhase);
+    // ✅ get filtered candidates
+    const filtered = getSortedCandidates(currentPhase.candidates, currentPhase.id);
 
-  if (!currentPhase) return;
+    // ✅ select only filtered candidates by default
+    setSelectedCandidates(filtered.map(c => c.id));
 
-  // ✅ get filtered candidates
-  const filtered = getSortedCandidates(currentPhase.candidates, currentPhase.id);
-
-  // ✅ select only filtered candidates by default
-  setSelectedCandidates(filtered.map(c => c.id));
-
-  setModalType('acceptance');
-  setModalStep(1);
+    setModalType('acceptance');
+    setModalStep(1);
     setEmailBody(`Dear Candidate,
 
 Congratulations! We are pleased to inform you that you have successfully passed the ${currentPhase?.name}.
@@ -257,39 +261,39 @@ HR Team`);
 
         await axios.post('http://localhost:5000/api/send-acceptance', { emails });
 
-await axios.post(
-  "http://localhost:5000/api/phase/mark-acceptance",
-  { phase_id: currentPhase.id }
-);
+        await axios.post(
+          "http://localhost:5000/api/phase/mark-acceptance",
+          { phase_id: currentPhase.id }
+        );
 
-alert(`Acceptance emails sent to ${emails.length} candidates!`);
+        alert(`Acceptance emails sent to ${emails.length} candidates!`);
 
-// Prepare jobApplicationIds
-const jobApplicationIds = selectedCandidates.map(id => {
-  const candidate = currentPhase.candidates.find(c => c.id === id);
-  return candidate.job_application_id;
-});
+        // Prepare jobApplicationIds
+        const jobApplicationIds = selectedCandidates.map(id => {
+          const candidate = currentPhase.candidates.find(c => c.id === id);
+          return candidate.job_application_id;
+        });
 
-// Mark them as passed
-await axios.post("http://localhost:5000/api/phase-candidates/mark-passed", {
-  phase_id: currentPhase.id,
-  candidate_ids: jobApplicationIds
-});
+        // Mark them as passed
+        await axios.post("http://localhost:5000/api/phase-candidates/mark-passed", {
+          phase_id: currentPhase.id,
+          candidate_ids: jobApplicationIds
+        });
 
-// ✅ IMPORTANT FIX: keep ONLY accepted candidates
-setPhases(prev =>
-  prev.map(p =>
-    p.id === activePhase
-      ? {
-          ...p,
-          acceptanceSent: true,
-          candidates: p.candidates.filter(c =>
-            selectedCandidates.includes(c.id)
+        // ✅ IMPORTANT FIX: keep ONLY accepted candidates
+        setPhases(prev =>
+          prev.map(p =>
+            p.id === activePhase
+              ? {
+                ...p,
+                acceptanceSent: true,
+                candidates: p.candidates.filter(c =>
+                  selectedCandidates.includes(c.id)
+                )
+              }
+              : p
           )
-        }
-      : p
-  )
-);
+        );
         setShowModal(false);
       }
 
@@ -330,45 +334,45 @@ setPhases(prev =>
     setShowFilter(false);
   };
 
-const getSortedCandidates = (candidates, phaseId) => {
-  if (!candidates) return [];
+  const getSortedCandidates = (candidates, phaseId) => {
+    if (!candidates) return [];
 
-  const currentPhase = phases.find(p => p.id === phaseId);
+    const currentPhase = phases.find(p => p.id === phaseId);
 
-  // ✅ if acceptance already sent → DO NOT FILTER
-  if (currentPhase?.acceptanceSent) {
-    return [...candidates].sort((a, b) =>
-      (b.score || 0) - (a.score || 0)
+    // ✅ if acceptance already sent → DO NOT FILTER
+    if (currentPhase?.acceptanceSent) {
+      return [...candidates].sort((a, b) =>
+        (b.score || 0) - (a.score || 0)
+      );
+    }
+
+    const sortedCandidates = [...candidates];
+    const option = rankingOption[phaseId] || {
+      type: 'phase_score',
+      filter: null,
+      value: null
+    };
+
+    const key = option.type === 'cgpa'
+      ? 'cgpa_phase_score'
+      : 'score';
+
+    sortedCandidates.sort((a, b) =>
+      (b[key] || 0) - (a[key] || 0)
     );
-  }
 
-  const sortedCandidates = [...candidates];
-  const option = rankingOption[phaseId] || {
-    type: 'phase_score',
-    filter: null,
-    value: null
+    if (option.filter === 'top' && option.value) {
+      return sortedCandidates.slice(0, option.value);
+    }
+
+    if (option.filter === 'threshold' && option.value != null) {
+      return sortedCandidates.filter(c =>
+        (c[key] || 0) >= option.value
+      );
+    }
+
+    return sortedCandidates;
   };
-
-  const key = option.type === 'cgpa'
-    ? 'cgpa_phase_score'
-    : 'score';
-
-  sortedCandidates.sort((a, b) =>
-    (b[key] || 0) - (a[key] || 0)
-  );
-
-  if (option.filter === 'top' && option.value) {
-    return sortedCandidates.slice(0, option.value);
-  }
-
-  if (option.filter === 'threshold' && option.value != null) {
-    return sortedCandidates.filter(c =>
-      (c[key] || 0) >= option.value
-    );
-  }
-
-  return sortedCandidates;
-};
 
   const currentPhase = phases.find(p => p.id === activePhase);
 
@@ -505,8 +509,8 @@ const getSortedCandidates = (candidates, phaseId) => {
                 </div>
 
                 {/* Filter Dropdown - Only show when phase is closed */}
-{currentPhase?.status === 'closed' && !currentPhase.acceptanceSent && (
-  <div className="phase-filter-dropdown">
+                {currentPhase?.status === 'closed' && !currentPhase.acceptanceSent && (
+                  <div className="phase-filter-dropdown">
                     <button
                       className="filter-button"
                       onClick={toggleFilter}
@@ -619,19 +623,19 @@ const getSortedCandidates = (candidates, phaseId) => {
                       {currentPhase.candidates.length} candidates
                     </span>
                     <div className="ranking-label">
-  Ranking by: {rankingOption[currentPhase.id]?.type === 'cgpa' ? 'CGPA' : 'Phase Score'}
-  {rankingOption[currentPhase.id]?.filter === 'top' && rankingOption[currentPhase.id]?.value
-    ? ` (Top ${rankingOption[currentPhase.id].value})`
-    : ''}
-  {rankingOption[currentPhase.id]?.filter === 'threshold' && rankingOption[currentPhase.id]?.value
-    ? ` (Above ${rankingOption[currentPhase.id].value})`
-    : ''}
-</div>
+                      Ranking by: {rankingOption[currentPhase.id]?.type === 'cgpa' ? 'CGPA' : 'Phase Score'}
+                      {rankingOption[currentPhase.id]?.filter === 'top' && rankingOption[currentPhase.id]?.value
+                        ? ` (Top ${rankingOption[currentPhase.id].value})`
+                        : ''}
+                      {rankingOption[currentPhase.id]?.filter === 'threshold' && rankingOption[currentPhase.id]?.value
+                        ? ` (Above ${rankingOption[currentPhase.id].value})`
+                        : ''}
+                    </div>
                   </div>
 
                   <div className="candidates-list">
                     {getSortedCandidates(currentPhase.candidates, currentPhase.id).map((candidate, index) => (
-                     <div key={candidate.id} className="candidate-result-card" onClick={() => handleCandidateClick(candidate)}>
+                      <div key={candidate.id} className="candidate-result-card" onClick={() => handleCandidateClick(candidate)}>
                         <div className="candidate-rank">#{index + 1}</div>
 
                         <div className="candidate-avatar">
@@ -650,9 +654,9 @@ const getSortedCandidates = (candidates, phaseId) => {
                         </div>
 
                         <div className="candidate-score-section">
-                         <div className={`score-circle ${candidate.score >= 80 ? 'high' : candidate.score >= 60 ? 'medium' : 'low'}`}>
-  {rankingOption[currentPhase.id]?.type === 'cgpa' ? candidate.cgpa_phase_score : candidate.score}%
-</div>
+                          <div className={`score-circle ${candidate.score >= 80 ? 'high' : candidate.score >= 60 ? 'medium' : 'low'}`}>
+                            {rankingOption[currentPhase.id]?.type === 'cgpa' ? candidate.cgpa_phase_score : candidate.score}%
+                          </div>
                           {candidate.submittedAt && (
                             <div className="submitted-time">
                               <Clock size={12} />

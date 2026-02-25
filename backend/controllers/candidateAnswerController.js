@@ -23,6 +23,7 @@ exports.addCandidateAnswer = async (req, res) => {
 exports.getAnswersByPhaseCandidate = async (req, res) => {
   try {
     const { phase_candidate_id } = req.params;
+    console.log("Fetching answers for phase_candidate_id:", phase_candidate_id);
 
     const result = await pool.query(
       `SELECT cad.*, qi.ques_text, qi.correct_answer
