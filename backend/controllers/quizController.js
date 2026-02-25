@@ -193,12 +193,33 @@ exports.assignAndSendQuiz = async (req, res) => {
         [phase_id, jobAppId]
       );
       if (duplicateCheck.rows.length === 0) {
-        const insert = await pool.query(
-          `INSERT INTO phase_candidates (phase_id, job_application_id)
-           VALUES ($1, $2)
-           RETURNING *`,
-          [phase_id, jobAppId]
-        );
+        // get cgpa value
+// get cgpa value from previous phase
+let cgpaValue = 0;
+
+if (phaseOrder > 1) {
+  const prevCgpa = await pool.query(
+    `SELECT pc.cgpa_phase_score
+     FROM phase_candidates pc
+     JOIN phase p ON pc.phase_id = p.id
+     WHERE pc.job_application_id = $1
+     AND p.phase_order = $2
+     AND p.job_id = $3`,
+    [jobAppId, phaseOrder - 1, jobId]
+  );
+
+  if (prevCgpa.rows.length > 0 && prevCgpa.rows[0].cgpa_phase_score != null) {
+    cgpaValue = prevCgpa.rows[0].cgpa_phase_score;
+  }
+}
+
+// insert with cgpa
+const insert = await pool.query(
+  `INSERT INTO phase_candidates (phase_id, job_application_id, cgpa_phase_score)
+   VALUES ($1, $2, $3)
+   RETURNING *`,
+  [phase_id, jobAppId, cgpaValue]
+);
         insertedCandidates.push(insert.rows[0]);
       }
     }
