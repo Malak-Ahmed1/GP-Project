@@ -157,3 +157,34 @@ exports.deletePhaseCandidate = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
+
+// Mark candidate(s) as passed after sending acceptance mail
+exports.markCandidatesPassed = async (req, res) => {
+  try {
+    const { phase_id, candidate_ids } = req.body; // candidate_ids = array of job_application_ids
+
+    if (!phase_id || !Array.isArray(candidate_ids) || candidate_ids.length === 0) {
+      return res.status(400).json({ error: "phase_id and candidate_ids are required." });
+    }
+
+    // Update phase_candidates passed=true
+    const result = await pool.query(
+      `UPDATE phase_candidates
+       SET passed = true
+       WHERE phase_id = $1 AND job_application_id = ANY($2::int[])
+       RETURNING *`,
+      [phase_id, candidate_ids]
+    );
+
+    res.json({
+      message: `Marked ${result.rows.length} candidate(s) as passed.`,
+      updated: result.rows
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+};

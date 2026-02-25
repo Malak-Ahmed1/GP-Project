@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const { createPhase, getPhases,getPhasesByJob , deletePhaseSafe, deletePhaseForce,updatePhase  } = require("../controllers/phaseController");
+const { createPhase, getPhases,getPhasesByJob , deletePhaseSafe, deletePhaseForce,updatePhase ,markAcceptanceSent } = require("../controllers/phaseController");
 
 // Create phase
 router.post("/", createPhase);
@@ -21,6 +21,8 @@ router.delete("/force/:phaseId", deletePhaseForce);
 router.put("/:phaseId", updatePhase);  // <--- new route
 
 
+
+router.post("/mark-acceptance", markAcceptanceSent);
 
 
 

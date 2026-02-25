@@ -63,6 +63,8 @@ function JobInterviewDetails() {
             const candidates = candidatesRes.data.map(c => ({
               id: c.candidate_id || c.id,                // Replace id mapping
               name: c.candidate_name || c.name || 'Unknown',
+                phase_candidate_id: c.id,  // ✅ ADD THIS LINE
+
               email: c.candidate_email || c.email || '',
               job_application_id: c.job_application_id,  // ADD this line
               score: Number(c.phase_score) || 0,
@@ -74,7 +76,10 @@ function JobInterviewDetails() {
               timeSpent: 'N/A',
               answers: []
             }));
-            return { ...phase, candidates, quizSent: phase.quiz_sent || false };
+            return { ...phase, candidates, quizSent: phase.quiz_sent || false,
+                acceptanceSent: phase.acceptance_sent || false   
+
+             };
           })
         );
 
@@ -101,11 +106,43 @@ function JobInterviewDetails() {
     }
   }, []);
 
+const handleCandidateClick = async (candidate) => {
+  try {
+    // Use phase_candidate_id here (NOT candidate.id)
+    const res = await axios.get(
+      `http://localhost:5000/api/candidate-answer/phase-candidate/${candidate.phase_candidate_id}`
+    );
 
-  const handleSendAcceptanceClick = () => {
-    setModalType('acceptance');
-    setModalStep(1);
-    setSelectedCandidates([]);
+    const answers = res.data.map(a => ({
+      id: a.id,
+      question: a.ques_text,
+      rawAnswer: a.raw_answer,
+      polishedAnswer: a.polished_answer,
+      answer: a.polished_answer || a.raw_answer,
+      idealAnswer: a.correct_answer,
+      score: a.score,
+      maxScore: 100
+    }));
+
+    setSelectedCandidate({ ...candidate, answers });
+  } catch (err) {
+    console.error("Error fetching candidate answers:", err);
+    alert("Failed to load candidate answers");
+  }
+};
+const handleSendAcceptanceClick = () => {
+  const currentPhase = phases.find(p => p.id === activePhase);
+
+  if (!currentPhase) return;
+
+  // ✅ get filtered candidates
+  const filtered = getSortedCandidates(currentPhase.candidates, currentPhase.id);
+
+  // ✅ select only filtered candidates by default
+  setSelectedCandidates(filtered.map(c => c.id));
+
+  setModalType('acceptance');
+  setModalStep(1);
     setEmailBody(`Dear Candidate,
 
 Congratulations! We are pleased to inform you that you have successfully passed the ${currentPhase?.name}.
@@ -219,7 +256,40 @@ HR Team`);
         }).filter(e => e !== null);
 
         await axios.post('http://localhost:5000/api/send-acceptance', { emails });
-        alert(`Acceptance emails sent to ${emails.length} candidates!`);
+
+await axios.post(
+  "http://localhost:5000/api/phase/mark-acceptance",
+  { phase_id: currentPhase.id }
+);
+
+alert(`Acceptance emails sent to ${emails.length} candidates!`);
+
+// Prepare jobApplicationIds
+const jobApplicationIds = selectedCandidates.map(id => {
+  const candidate = currentPhase.candidates.find(c => c.id === id);
+  return candidate.job_application_id;
+});
+
+// Mark them as passed
+await axios.post("http://localhost:5000/api/phase-candidates/mark-passed", {
+  phase_id: currentPhase.id,
+  candidate_ids: jobApplicationIds
+});
+
+// ✅ IMPORTANT FIX: keep ONLY accepted candidates
+setPhases(prev =>
+  prev.map(p =>
+    p.id === activePhase
+      ? {
+          ...p,
+          acceptanceSent: true,
+          candidates: p.candidates.filter(c =>
+            selectedCandidates.includes(c.id)
+          )
+        }
+      : p
+  )
+);
         setShowModal(false);
       }
 
@@ -248,30 +318,57 @@ HR Team`);
     setShowFilter(!showFilter);
   };
 
-  const handleRankingChange = (option) => {
+  const handleRankingChange = (type, filter = null, value = null) => {
     setRankingOption(prev => {
-      const newRanking = { ...prev, [activePhase]: option };
-      localStorage.setItem('rankingOption', JSON.stringify(newRanking)); // persist
+      const newRanking = {
+        ...prev,
+        [activePhase]: { type, filter, value }
+      };
+      localStorage.setItem('rankingOption', JSON.stringify(newRanking));
       return newRanking;
     });
     setShowFilter(false);
   };
 
+const getSortedCandidates = (candidates, phaseId) => {
+  if (!candidates) return [];
 
-  const getSortedCandidates = (candidates, phaseId) => {
-    if (!candidates) return [];
+  const currentPhase = phases.find(p => p.id === phaseId);
 
-    const sortedCandidates = [...candidates];
-    const option = rankingOption[phaseId] || 'phase_score'; // default if not set
+  // ✅ if acceptance already sent → DO NOT FILTER
+  if (currentPhase?.acceptanceSent) {
+    return [...candidates].sort((a, b) =>
+      (b.score || 0) - (a.score || 0)
+    );
+  }
 
-    if (option === 'phase_score') {
-      sortedCandidates.sort((a, b) => (b.score || 0) - (a.score || 0));
-    } else if (option === 'cgpa') {
-      sortedCandidates.sort((a, b) => (b.cgpa_phase_score || 0) - (a.cgpa_phase_score || 0));
-    }
-
-    return sortedCandidates;
+  const sortedCandidates = [...candidates];
+  const option = rankingOption[phaseId] || {
+    type: 'phase_score',
+    filter: null,
+    value: null
   };
+
+  const key = option.type === 'cgpa'
+    ? 'cgpa_phase_score'
+    : 'score';
+
+  sortedCandidates.sort((a, b) =>
+    (b[key] || 0) - (a[key] || 0)
+  );
+
+  if (option.filter === 'top' && option.value) {
+    return sortedCandidates.slice(0, option.value);
+  }
+
+  if (option.filter === 'threshold' && option.value != null) {
+    return sortedCandidates.filter(c =>
+      (c[key] || 0) >= option.value
+    );
+  }
+
+  return sortedCandidates;
+};
 
   const currentPhase = phases.find(p => p.id === activePhase);
 
@@ -408,8 +505,8 @@ HR Team`);
                 </div>
 
                 {/* Filter Dropdown - Only show when phase is closed */}
-                {currentPhase?.status === 'closed' && (
-                  <div className="phase-filter-dropdown">
+{currentPhase?.status === 'closed' && !currentPhase.acceptanceSent && (
+  <div className="phase-filter-dropdown">
                     <button
                       className="filter-button"
                       onClick={toggleFilter}
@@ -419,6 +516,7 @@ HR Team`);
                     </button>
                     {showFilter && (
                       <div className="filter-menu">
+                        {/* Ranking Type */}
                         <button
                           className="filter-option"
                           onClick={() => handleRankingChange('phase_score')}
@@ -431,6 +529,30 @@ HR Team`);
                         >
                           Rank by CGPA
                         </button>
+
+                        {/* Top K / Threshold Inputs */}
+                        <div className="filter-extra" style={{ marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <input
+                            type="number"
+                            placeholder="Top K"
+                            style={{ padding: '4px' }}
+                            onBlur={(e) => handleRankingChange(
+                              rankingOption[activePhase]?.type || 'phase_score',
+                              'top',
+                              Number(e.target.value)
+                            )}
+                          />
+                          <input
+                            type="number"
+                            placeholder="Threshold"
+                            style={{ padding: '4px' }}
+                            onBlur={(e) => handleRankingChange(
+                              rankingOption[activePhase]?.type || 'phase_score',
+                              'threshold',
+                              Number(e.target.value)
+                            )}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>
@@ -497,13 +619,19 @@ HR Team`);
                       {currentPhase.candidates.length} candidates
                     </span>
                     <div className="ranking-label">
-                      Ranking by: {rankingOption[currentPhase.id] === 'cgpa' ? 'CGPA' : 'Phase Score'}
-                    </div>
+  Ranking by: {rankingOption[currentPhase.id]?.type === 'cgpa' ? 'CGPA' : 'Phase Score'}
+  {rankingOption[currentPhase.id]?.filter === 'top' && rankingOption[currentPhase.id]?.value
+    ? ` (Top ${rankingOption[currentPhase.id].value})`
+    : ''}
+  {rankingOption[currentPhase.id]?.filter === 'threshold' && rankingOption[currentPhase.id]?.value
+    ? ` (Above ${rankingOption[currentPhase.id].value})`
+    : ''}
+</div>
                   </div>
 
                   <div className="candidates-list">
                     {getSortedCandidates(currentPhase.candidates, currentPhase.id).map((candidate, index) => (
-                      <div key={candidate.id} className="candidate-result-card" onClick={() => setSelectedCandidate(candidate)}>
+                     <div key={candidate.id} className="candidate-result-card" onClick={() => handleCandidateClick(candidate)}>
                         <div className="candidate-rank">#{index + 1}</div>
 
                         <div className="candidate-avatar">
@@ -522,9 +650,9 @@ HR Team`);
                         </div>
 
                         <div className="candidate-score-section">
-                          <div className={`score-circle ${candidate.score >= 80 ? 'high' : candidate.score >= 60 ? 'medium' : 'low'}`}>
-                            {rankingOption[currentPhase.id] === 'cgpa' ? candidate.cgpa_phase_score : candidate.score}%
-                          </div>
+                         <div className={`score-circle ${candidate.score >= 80 ? 'high' : candidate.score >= 60 ? 'medium' : 'low'}`}>
+  {rankingOption[currentPhase.id]?.type === 'cgpa' ? candidate.cgpa_phase_score : candidate.score}%
+</div>
                           {candidate.submittedAt && (
                             <div className="submitted-time">
                               <Clock size={12} />
@@ -539,7 +667,7 @@ HR Team`);
                   </div>
 
                   {/* Send Acceptance Mail Button - At bottom of ranking */}
-                  {currentPhase.candidates.some(c => c.score > 0) && (
+                  {currentPhase.candidates.some(c => c.score > 0) && !currentPhase.acceptanceSent && (
                     <div className="acceptance-mail-section">
                       <div className="acceptance-mail-card">
                         <div className="mail-icon">

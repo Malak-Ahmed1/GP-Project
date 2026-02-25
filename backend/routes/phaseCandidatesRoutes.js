@@ -5,7 +5,7 @@ const {
   assignCandidateToPhase,
   getPhaseCandidates,
   updatePhaseCandidateWithCGPA,
-  deletePhaseCandidate
+  deletePhaseCandidate,markCandidatesPassed
 } = require("../controllers/phaseCandidateController");
 
 // Assign candidate to a phase
@@ -19,5 +19,8 @@ router.put("/:id", updatePhaseCandidateWithCGPA);
 
 // Delete a phase candidate
 router.delete("/:id", deletePhaseCandidate);
+
+// Mark candidates as passed
+router.post("/mark-passed", markCandidatesPassed);
 
 module.exports = router;

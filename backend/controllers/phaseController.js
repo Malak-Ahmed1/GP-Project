@@ -190,3 +190,33 @@ exports.deletePhaseForce = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+
+
+
+// MARK acceptance as sent
+exports.markAcceptanceSent = async (req, res) => {
+  try {
+    const { phase_id } = req.body;
+
+    const result = await pool.query(
+      `UPDATE phase
+       SET acceptance_sent = TRUE
+       WHERE id = $1
+       RETURNING *`,
+      [phase_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Phase not found" });
+    }
+
+    res.json({
+      message: "Acceptance marked as sent",
+      phase: result.rows[0]
+    });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
