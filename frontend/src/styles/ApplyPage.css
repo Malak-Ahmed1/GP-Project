@@ -1,0 +1,213 @@
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --bg: #f8fafc;
+  --text-main: #1e293b;
+  --text-sub: #64748b;
+  --border: #e2e8f0;
+}
+
+.apply-page {
+  min-height: 100vh;
+  background-color: var(--bg);
+  display: flex;
+  justify-content: center;
+  padding: 60px 20px;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.apply-card {
+  width: 100%;
+  max-width: 720px;
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.apply-header {
+  padding: 48px 40px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.apply-header h1 {
+  font-size: 28px;
+  color: var(--text-main);
+  margin-bottom: 12px;
+  font-weight: 700;
+}
+
+.apply-header p {
+  color: var(--text-sub);
+  line-height: 1.6;
+}
+
+.candidate-form-wrapper {
+  padding: 40px;
+}
+
+/* Form Layout */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+
+.span-2 { grid-column: span 2; }
+
+.field-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-main);
+  margin-bottom: 6px;
+}
+
+.field-label span { color: #ef4444; }
+
+input, textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 15px;
+  transition: border-color 0.2s;
+}
+
+input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  ring: 2px solid rgba(37, 99, 235, 0.1);
+}
+
+/* Custom Upload Zone */
+.upload-zone {
+  position: relative;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  transition: background 0.2s;
+}
+
+.upload-zone:hover { background: #f1f5f9; }
+
+.upload-zone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.upload-content p {
+  font-size: 14px;
+  color: var(--text-sub);
+}
+
+/* Buttons */
+.primary-submit {
+  margin-top: 30px;
+  width: 100%;
+  background: #4e73df;
+  color: white;
+  padding: 16px;
+  border-radius: 6px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.primary-submit::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.5);
+  transform: translate(-50%, -50%);
+  transition: width 0.6s, height 0.6s;
+}
+
+.primary-submit:hover::before {
+  width: 300px;
+  height: 300px;
+}
+
+.primary-submit:hover {
+  background: #3e5fbb;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(78, 115, 223, 0.4);
+}
+
+.primary-submit:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 8px rgba(78, 115, 223, 0.3);
+}
+
+.primary-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Success State */
+.success-state {
+  text-align: center;
+  padding: 40px 0;
+}
+
+.success-badge {
+  width: 50px;
+  height: 50px;
+  background: #dcfce7;
+  color: #15803d;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 20px;
+  font-size: 24px;
+}
+
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .span-2 { grid-column: span 1; }
+  .apply-header, .candidate-form-wrapper { padding: 24px; }
+}
+.apply-footer {
+  padding: 24px 40px;
+  background: #ffffff; /* Keeps it clean and integrated with the card */
+  border-top: 1px solid #f1f5f9; /* Very subtle light border */
+  text-align: center;
+}
+
+.apply-footer p {
+  font-size: 13px; /* Smaller for legal text */
+  color: #64748b; /* Muted slate gray */
+  line-height: 1.5;
+  margin: 0;
+}
+
+.apply-footer a {
+  color: #2563eb; /* Primary blue for links */
+  text-decoration: none;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.apply-footer a:hover {
+  color: #1d4ed8; /* Darker blue on hover */
+  text-decoration: underline;
+}
+
+/* Responsive adjustment */
+@media (max-width: 600px) {
+  .apply-footer {
+    padding: 20px;
+  }
+}

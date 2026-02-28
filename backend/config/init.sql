@@ -1,5 +1,3 @@
--- updated version of init.sql with additional fields and tables for enhanced functionality
--- =========================================
 -- HR TABLE
 -- =========================================
 CREATE TABLE hr (
@@ -7,11 +5,21 @@ CREATE TABLE hr (
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     company_email VARCHAR(255) UNIQUE NOT NULL,
+    password TEXT NOT NULL,
     phone_number VARCHAR(20),
     company_name VARCHAR(255),
-    position VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+CREATE TABLE hr_google_tokens (
+  id SERIAL PRIMARY KEY,
+  hr_id INTEGER REFERENCES hr(id) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL,
+  refresh_token TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 -- =========================================
 -- JOB TABLE
@@ -27,6 +35,7 @@ CREATE TABLE job (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+
 -- =========================================
 -- CANDIDATE TABLE
 -- =========================================
@@ -40,6 +49,18 @@ CREATE TABLE candidate (
 );
 
 -- =========================================
+-- JOB CUSTOM FIELD TABLE
+-- =========================================
+CREATE TABLE job_field (
+    id SERIAL PRIMARY KEY,
+    job_id INTEGER NOT NULL REFERENCES job(id) ON DELETE CASCADE,
+    field_name VARCHAR(255) NOT NULL,
+    field_type VARCHAR(50) NOT NULL, 
+    -- examples: text, number, date, boolean, file, url
+    is_required BOOLEAN DEFAULT TRUE
+);
+
+-- =========================================
 -- JOB APPLICATION TABLE
 -- =========================================
 CREATE TABLE job_application (
@@ -47,29 +68,23 @@ CREATE TABLE job_application (
     job_id INTEGER NOT NULL REFERENCES job(id) ON DELETE CASCADE,
     candidate_id INTEGER NOT NULL REFERENCES candidate(id) ON DELETE CASCADE,
     score_cv NUMERIC(5,2),
-    cgpa NUMERIC(4,2) DEFAULT 0,
+    total_score NUMERIC(4,2) DEFAULT 0,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(job_id, candidate_id)
 );
-
 -- =========================================
--- PHASE TABLE
+-- JOB APPLICATION FIELD ANSWERS
 -- =========================================
-CREATE TABLE phase (
+CREATE TABLE job_application_field_answer (
     id SERIAL PRIMARY KEY,
-    job_id INTEGER NOT NULL REFERENCES job(id) ON DELETE CASCADE,
-    phase_order INTEGER NOT NULL,
-    ranked BOOLEAN DEFAULT FALSE,
-    method VARCHAR(50),
-    time_limit INTEGER,
-    available BOOLEAN DEFAULT TRUE,
-    num_questions INTEGER,
-    severity INTEGER,
-    end_date DATE,
-    link VARCHAR(255),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(job_id, phase_order)
+    job_application_id INTEGER NOT NULL 
+        REFERENCES job_application(id) ON DELETE CASCADE,
+    job_field_id INTEGER NOT NULL 
+        REFERENCES job_field(id) ON DELETE CASCADE,
+    value TEXT, -- store all answers as text
+    UNIQUE(job_application_id, job_field_id)
 );
+
 
 -- =========================================
 -- PHASE CANDIDATES

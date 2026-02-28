@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 
-function CandidateTable({ candidates, showScore }) {
+function CandidateTable({ candidates, showScore, onViewDetails }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -22,6 +22,7 @@ function CandidateTable({ candidates, showScore }) {
             <th>Name</th>
             <th>Email</th>
             {showScore ? <th>Match Score</th> : <th>Applied At</th>}
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -45,6 +46,26 @@ function CandidateTable({ candidates, showScore }) {
                     {c.appliedAt}
                   </span>
                 )}
+              </td>
+              <td>
+                <button 
+                  className="btn-view-details"
+                  onClick={() => onViewDetails && onViewDetails(c)}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    backgroundColor: '#4299e1',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    transition: 'background-color 0.2s ease'
+                  }}
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#3182ce'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = '#4299e1'}
+                >
+                  View Details
+                </button>
               </td>
             </tr>
           ))}

@@ -1,0 +1,204 @@
+/* Phone Input Styles */
+.phone-input-container {
+  position: relative;
+}
+
+.phone-input-wrapper {
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.phone-input-wrapper:focus-within {
+  border-color: #4e73df;
+  box-shadow: 0 0 0 3px rgba(78, 115, 223, 0.1);
+}
+
+/* Country Dropdown */
+.country-dropdown {
+  position: relative;
+}
+
+.country-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px;
+  background: white;
+  border: none;
+  border-right: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  min-width: 100px;
+  color: #2d3748;
+}
+
+.country-selector:hover {
+  background: #f8fafc;
+}
+
+.country-flag {
+  font-size: 16px;
+}
+
+.country-code {
+  font-weight: 600;
+  color: #4a5568;
+  font-size: 14px;
+}
+
+.dropdown-arrow {
+  font-size: 10px;
+  color: #718096;
+  transition: transform 0.2s ease;
+}
+
+.country-selector:hover .dropdown-arrow {
+  transform: translateY(1px);
+}
+
+/* Dropdown Menu */
+.country-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 9999;
+  max-height: 300px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.dropdown-search {
+  padding: 12px;
+  border-bottom: 1px solid #e2e8f0;
+  background: white;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  color: #2d3748;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4e73df;
+  box-shadow: 0 0 0 3px rgba(78, 115, 223, 0.1);
+}
+
+.search-input::placeholder {
+  color: #a0aec0;
+}
+
+.country-list {
+  max-height: 250px;
+  overflow-y: auto;
+  background: white;
+}
+
+.country-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  background: white;
+  color: #2d3748;
+}
+
+.country-option:hover {
+  background: #f8fafc;
+}
+
+.country-option.selected {
+  background: #e0e7ff;
+  color: #4e73df;
+}
+
+.country-name {
+  flex: 1;
+  font-size: 14px;
+  color: #2d3748;
+}
+
+.country-dial-code {
+  font-size: 14px;
+  color: #718096;
+  font-weight: 500;
+}
+
+/* No Results State */
+.no-results {
+  padding: 20px;
+  text-align: center;
+  color: #718096;
+  font-size: 14px;
+  font-style: italic;
+  background: white;
+}
+
+/* Phone Number Input */
+.phone-number-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: white;
+  color: #2d3748;
+}
+
+.phone-number-input::placeholder {
+  color: #a0aec0;
+}
+
+/* Full Number Display */
+.full-phone-display {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #718096;
+  font-style: italic;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .country-selector {
+    padding: 10px 12px;
+    min-width: 80px;
+  }
+  
+  .country-code {
+    font-size: 12px;
+  }
+  
+  .phone-number-input {
+    padding: 10px 12px;
+    font-size: 16px; /* Prevent zoom on iOS */
+  }
+  
+  .country-option {
+    padding: 12px;
+  }
+  
+  .country-name {
+    font-size: 13px;
+  }
+  
+  .country-dial-code {
+    font-size: 13px;
+  }
+}

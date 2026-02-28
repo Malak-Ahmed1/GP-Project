@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { FaGithub } from "react-icons/fa";
 import { FaLinkedin } from "react-icons/fa";
 import { FaMicrosoft } from "react-icons/fa";
+import PhoneInput from "../components/PhoneInput.js";
+import "../styles/PhoneInput.css";
+import { useToast } from "../contexts/ToastContext";
 
 function SignUpPage() {
   const navigate = useNavigate();
+  const { showError, showSuccess } = useToast();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -14,7 +17,8 @@ function SignUpPage() {
     password: "",
     confirmPassword: "",
     companyName: "",
-     companyEmail: ""
+    companyEmail: "",
+    phoneNumber: ""
   });
 
   const handleInputChange = (e) => {
@@ -24,29 +28,99 @@ function SignUpPage() {
     });
   };
 
-  const handleSignUp = (e) => {
-    e.preventDefault();
-    
-    // Basic validation
-    if (formData.password !== formData.confirmPassword) {
-      alert("Passwords don't match!");
-      return;
-    }
-    
-    if (formData.password.length < 8) {
-      alert("Password must be at least 8 characters!");
-      return;
-    }
-    
-    console.log("Sign up data:", formData);
-    navigate("/dashboard");
-  };
+  const handleSignUp = async (e) => {
+  e.preventDefault();
 
-  const handleSocialSignUp = (provider) => {
-    // Handle social media sign up logic here
-    console.log(`Signing up with ${provider}`);
-    navigate("/dashboard");
-  };
+  if (formData.password !== formData.confirmPassword) {
+    showError("Passwords don't match!");
+    return;
+  }
+
+  if (formData.password.length < 8) {
+    showError("Password must be at least 8 characters!");
+    return;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/api/hr/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        password: formData.password,
+        companyName: formData.companyName,
+        companyEmail: formData.companyEmail,
+        phoneNumber: formData.phoneNumber,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      showSuccess(data.message);
+      navigate("/login");
+    } else {
+      showError(data.message);
+    }
+
+  } catch (err) {
+    console.error("Signup error:", err);
+    showError("Server error");
+  }
+};
+
+
+const handleSocialSignUp = async (providerName) => {
+  try {
+    // Simulate getting user info from provider
+    const dummyData = {
+      Google: { email: "hr_google@example.com", name: "John Google" },
+      GitHub: { email: "hr_github@example.com", name: "Jane GitHub" },
+      LinkedIn: { email: "hr_linkedin@example.com", name: "Linda LinkedIn" },
+      Microsoft: { email: "hr_microsoft@example.com", name: "Mike Microsoft" },
+    };
+
+    const socialUser = dummyData[providerName];
+
+    const response = await fetch("http://localhost:5000/api/hr/social-login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(socialUser),
+    });
+
+    const data = await response.json();
+
+    if (response.ok) {
+      // Save token in localStorage for now
+      localStorage.setItem("token", data.token);
+      console.log("User info:", data.user);
+      
+      // Check if required fields are missing
+      if (!data.user.phone_number || !data.user.company_email) {
+        // Save user data and redirect to profile page to complete registration
+        localStorage.setItem("hrUser", JSON.stringify(data.user));
+        showSuccess("Social login successful! Please complete your profile information.");
+        navigate("/profile");
+      } else {
+        // User has complete info, go to dashboard
+        localStorage.setItem("hrUser", JSON.stringify(data.user));
+        showSuccess("Login successful!");
+        navigate("/dashboard");
+      }
+    } else {
+      showError(data.message);
+    }
+  } catch (err) {
+    console.error(err);
+    showError("Social login failed");
+  }
+};
+
+
 
   return (
     <div className="page-container">
@@ -131,12 +205,20 @@ function SignUpPage() {
             <label>Company Email</label>
             <input
               type="email"
-              name="email"
+              name="companyEmail"
               className="input"
               placeholder="company@company.com"
-              value={formData.email}
+              value={formData.companyEmail}
               onChange={handleInputChange}
               required
+            />
+          </div>
+          <div className="form-group full-width">
+            <label>Phone Number</label>
+            <PhoneInput
+              value={formData.phoneNumber}
+              onChange={handleInputChange}
+              name="phoneNumber"
             />
           </div>
           <div className="form-group full-width">
@@ -187,13 +269,7 @@ function SignUpPage() {
             Sign up with Google
           </button>
           
-          <button 
-            className="social-btn github-btn"
-            onClick={() => handleSocialSignUp('GitHub')}
-          >
-            <FaGithub size={20} />
-            Sign up with GitHub
-          </button>
+         
           
           <button 
             className="social-btn linkedin-btn"

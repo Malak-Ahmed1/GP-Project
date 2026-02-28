@@ -1,18 +1,66 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import "../styles/CreateJobPage.css";
+import { useToast } from "../contexts/ToastContext";
 
-function CreateJobPage() {
+function EditJobPage() {
   const navigate = useNavigate();
-
+  const { jobId } = useParams();
+  const { showError, showSuccess } = useToast();
+  const [loading, setLoading] = useState(true);
   const [jobTitle, setJobTitle] = useState("");
-  const [closingDate, setClosingDate] = useState(""); // New: Optional closing date
-  const [fields, setFields] = useState([
-    { id: 1, label: "Full Name", type: "text", isRequired: true },
-    { id: 2, label: "Email", type: "email", isRequired: true },
-    { id: 3, label: "Upload CV", type: "file", isRequired: false },
-  ]);
+  const [closingDate, setClosingDate] = useState("");
+  const [fields, setFields] = useState([]);
   const [jobDescription, setJobDescription] = useState("");
+
+  useEffect(() => {
+    if (!jobId) {
+      console.error("No job ID provided for edit");
+      navigate("/dashboard");
+      return;
+    }
+
+    const fetchJobDetails = async () => {
+      try {
+        console.log("Fetching job details for ID:", jobId);
+        const res = await fetch(`http://localhost:5000/api/job/details/${jobId}`);
+        const data = await res.json();
+        
+        console.log("Job details response:", { status: res.status, data });
+        
+        if (res.ok) {
+          console.log("Loading job data:", data);
+          setJobTitle(data.title || "");
+          setJobDescription(data.job_desc || "");
+          setClosingDate(data.end_date ? new Date(data.end_date).toISOString().split('T')[0] : "");
+          
+          if (data.fields && Array.isArray(data.fields)) {
+            console.log("Loading fields:", data.fields);
+            // Map backend field format to frontend format
+            const mappedFields = data.fields.map(field => ({
+              id: field.id,
+              label: field.field_name,
+              type: field.field_type,
+              isRequired: field.is_required
+            }));
+            setFields(mappedFields);
+          } else {
+            console.log("No fields found, using defaults");
+          }
+        } else {
+          console.error("Failed to fetch job details:", data.message);
+          showError("Failed to load job details: " + (data.message || "Unknown error"));
+        }
+      } catch (err) {
+        console.error("Error fetching job details:", err);
+        showError("Network error while loading job details");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchJobDetails();
+  }, [jobId, navigate]);
 
   const addField = () => {
     const newField = {
@@ -50,12 +98,12 @@ function CreateJobPage() {
       console.log("Stored user:", storedUser);
       
       if (!storedUser) {
-        alert("Please login first");
+        showError("Please login first");
         return;
       }
 
       if (!jobTitle.trim()) {
-        alert("Please enter a job title");
+        showError("Please enter a job title");
         return;
       }
 
@@ -67,9 +115,9 @@ function CreateJobPage() {
         fields,
       };
 
-      console.log("Creating new job...");
-      const res = await fetch("http://localhost:5000/api/job/add-job", {
-        method: "POST",
+      console.log("Updating job:", jobId);
+      const res = await fetch(`http://localhost:5000/api/job/update-job/${jobId}`, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
         },
@@ -82,27 +130,41 @@ function CreateJobPage() {
       console.log("Response data:", data);
 
       if (!res.ok) {
-        alert(data.message || "Failed to create job");
+        showError(data.message || "Failed to update job");
         return;
       }
 
-      console.log("Job created successfully:", data);
-      alert("Job created successfully!");
+      console.log("Job updated successfully:", data);
+      showSuccess("Job updated successfully!");
       
       navigate("/dashboard");
 
     } catch (err) {
-      console.error("Job creation error:", err);
-      alert("Network error. Please try again.");
+      console.error("Job update error:", err);
+      showError("Network error. Please try again.");
     }
   };
+
+  if (loading) {
+    return (
+      <div className="page-container">
+        <div className="card">
+          <div style={{ textAlign: 'center', padding: '60px 40px' }}>
+            <div style={{ fontSize: '24px', marginBottom: '16px' }}>⏳</div>
+            <h2>Loading Job Details...</h2>
+            <p style={{ color: '#718096' }}>Please wait while we fetch the job information.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page-container">
       <div className="card">
-        <h1>Create Application Form</h1>
+        <h1>Edit Job</h1>
         <p style={{ color: '#718096', marginBottom: '24px' }}>
-          Define information and deadline for your candidates.
+          Update job information and form fields.
         </p>
 
         {/* Layout for Title and Optional Date */}
@@ -114,7 +176,7 @@ function CreateJobPage() {
               placeholder="e.g. Senior Software Engineer"
               value={jobTitle}
               onChange={(e) => setJobTitle(e.target.value)}
-              style={{ marginBottom: 0 }} // Override previous margin
+              style={{ marginBottom: 0 }}
             />
           </div>
           
@@ -183,11 +245,11 @@ function CreateJobPage() {
         </button>
 
         <button className="primary-btn" onClick={saveForm}>
-          Save and Publish Form
+          Update Job
         </button>
       </div>
     </div>
   );
 }
 
-export default CreateJobPage;
+export default EditJobPage;

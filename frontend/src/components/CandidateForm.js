@@ -1,122 +1,109 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useToast } from "../contexts/ToastContext";
 
-function CandidateForm({ jobId }) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", experience: "" });
+function CandidateForm({ jobId, fields }) {
+  const [form, setForm] = useState({});
   const [file, setFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const { showError, showSuccess } = useToast();
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  useEffect(() => {
+    const initial = {};
+    fields.forEach((field) => { initial[field.id] = ""; });
+    setForm(initial);
+  }, [fields]);
+
+  const handleChange = (e) => {
+    const { name, value, files } = e.target;
+    if (files) {
+      setFile(files[0]);
+    } else {
+      setForm({ ...form, [name]: value });
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const answers = [];
+      let name = "", email = "", phone_number = "";
+      let cv_link = file ? file.name : null;
+
+      fields.forEach((field) => {
+        const val = form[field.id] || "";
+        const label = field.label.toLowerCase();
+        if (label.includes("name") && !name) name = val;
+        else if (label.includes("email") && !email) email = val;
+        else if (label.includes("phone") && !phone_number) phone_number = val;
+        else if (field.type !== "file") answers.push({ job_field_id: field.id, value: val });
+      });
+
+      const res = await fetch(`http://localhost:5000/api/candidate/apply/${jobId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, email, phone_number, cv_link, answers }),
+      });
+
+      if (!res.ok) throw new Error("Submission failed");
+      showSuccess("Application submitted successfully!");
       setIsSuccess(true);
-    }, 1500);
+    } catch (error) {
+      showError(error.message || "Failed to submit application");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSuccess) {
     return (
-      <div style={{ textAlign: 'center', padding: '60px 40px' }}>
-        <div style={{ fontSize: '60px', marginBottom: '24px' }}>✅</div>
-        <h2 style={{ marginBottom: '12px' }}>Application Sent!</h2>
-        <p style={{ color: '#718096', marginBottom: '30px' }}>
-          Good luck! The hiring team will review your CV shortly.
-        </p>
-        <button className="secondary-btn" onClick={() => setIsSuccess(false)}>
-          Apply for another role
-        </button>
+      <div className="success-state">
+        <div className="success-badge">✓</div>
+        <h2>Application Received</h2>
+        <p>We’ve received your profile for this role. Our team will contact you if there is a match.</p>
+        
       </div>
     );
   }
 
   return (
-    // ... inside your return statement
-<form onSubmit={handleSubmit} className="candidate-form">
-  {/* Name & Email Group */}
-  <div className="form-group">
-    <label>Full Name</label>
-    <input 
-      name="name" 
-      className="input" /* MUST HAVE THIS */
-      placeholder="John Doe" 
-      onChange={handleChange} 
-      required 
-    />
-  </div>
+    <form onSubmit={handleSubmit} className="modern-form">
+      <div className="form-grid">
+        {fields.filter(field => field.type !== "file").map((field) => (
+          <div key={field.id} className={`field-container ${field.type === "textarea" ? "span-2" : ""}`}>
+            <label className="field-label">
+              {field.label} {field.isRequired && <span>*</span>}
+            </label>
 
-  <div className="form-group">
-    <label>Email Address</label>
-    <input 
-      name="email" 
-      type="email" 
-      className="input" 
-      placeholder="john@example.com" 
-      onChange={handleChange} 
-      required 
-    />
-  </div>
-
-  {/* Phone & Experience Group */}
-  <div className="form-group">
-    <label>Phone Number</label>
-    <input 
-      name="phone" 
-      className="input" 
-      placeholder="+1 (555) 000-0000" 
-      onChange={handleChange} 
-      required 
-    />
-  </div>
-
-  <div className="form-group">
-    <label>Years of Experience</label>
-    <input 
-      name="experience" 
-      type="number" 
-      className="input" 
-      placeholder="e.g. 5" 
-      onChange={handleChange} 
-      required 
-    />
-  </div>
-
-  {/* CV Upload */}
-  <div className="form-group full-width">
-      {/* Row 3 - Full Width */}
-      <div className="form-group full-width">
-        <label>Upload Resume / CV</label>
-        <div className={`file-dropzone ${file ? 'has-file' : ''}`}>
-          {file ? (
-            <div className="file-name-preview">
-              <span>📄</span> {file.name} 
-              <button 
-                type="button" 
-                onClick={(e) => { e.preventDefault(); setFile(null); }} 
-                style={{background:'none', border:'none', color:'#e53e3e', cursor:'pointer', marginLeft:'10px', fontSize: '16px'}}
-              >
-                ✕
-              </button>
-            </div>
-          ) : (
-            <>
-              <p style={{ margin: 0, color: '#4e73df', fontWeight: '600' }}>Drop your CV here</p>
-              <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#718096' }}>PDF, DOCX up to 5MB</p>
-            </>
-          )}
-          <input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files[0])} required />
-        </div>
+            {field.type === "textarea" ? (
+              <textarea name={field.id} onChange={handleChange} required={field.isRequired} placeholder={`Your ${field.label.toLowerCase()}...`} rows={4} />
+            ) : (
+              <input type={field.type} name={field.id} onChange={handleChange} required={field.isRequired} placeholder={`Enter ${field.label.toLowerCase()}`} />
+            )}
+          </div>
+        ))}
       </div>
-  </div>
-
-  <div className="full-width">
-    <button type="submit" className="primary-btn">
-      Submit Application
-    </button>
-  </div>
-</form>
+      
+      {/* File upload field always at the bottom */}
+      {fields.filter(field => field.type === "file").map((field) => (
+        <div key={field.id} className="field-container span-2">
+          <label className="field-label">
+            {field.label} {field.isRequired && <span>*</span>}
+          </label>
+          <div className="upload-zone">
+            <input type="file" accept=".pdf,.doc,.docx" onChange={handleChange} required={field.isRequired} />
+            <div className="upload-content">
+              <p>{file ? `Selected: ${file.name}` : "Click to upload Resume (PDF/DOCX)"}</p>
+            </div>
+          </div>
+        </div>
+      ))}
+      
+      <button type="submit" disabled={isSubmitting} className="primary-submit">
+        {isSubmitting ? "Processing..." : "Submit Application"}
+      </button>
+    </form>
   );
 }
 

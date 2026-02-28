@@ -1,64 +1,87 @@
-import React, { useState, useRef } from 'react';
-import { Camera, Edit2, Save, X, Mail, Building, Lock, ArrowLeft, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Mail, Building, Lock, ArrowLeft, Check } from 'lucide-react';
+import "../styles/ProfilePage.css";
+import { useToast } from "../contexts/ToastContext";
+import PhoneInput from "../components/PhoneInput";
 
 function ProfilePage() {
-  const [isEditing, setIsEditing] = useState(false);
-  const [showSaveSuccess, setShowSaveSuccess] = useState(false);
+  const { showSuccess, showError } = useToast();
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [passwordStep, setPasswordStep] = useState('request');
   const [emailCode, setEmailCode] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const fileInputRef = useRef(null);
+  const [isEditing, setIsEditing] = useState(false);
   
   const [profile, setProfile] = useState({
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@company.com',
-    company: 'TechCorp Inc.',
+    firstName: '',
+    lastName: '',
+    email: '',
+    companyEmail: '',
+    company: '',
+    phoneNumber: '',
+    country: 'EG', // Default to Egypt
     profilePhoto: null
   });
 
-  const [editForm, setEditForm] = useState({ ...profile });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleEdit = () => {
-    setEditForm({ ...profile });
-    setIsEditing(true);
-  };
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("hrUser"));
+        console.log("Stored user from localStorage:", storedUser);
+        
+        if (!storedUser) {
+          console.log("No stored user found");
+          setIsLoading(false);
+          return;
+        }
 
-  const handleCancel = () => {
-    setIsEditing(false);
-    setEditForm({ ...profile });
-  };
+        // Check if user has missing required fields and show notification
+        if (!storedUser.phone_number || !storedUser.company_email) {
+          showSuccess("Please complete your profile information to continue using the platform.");
+        }
 
-  const handleSave = () => {
-    setProfile({ ...editForm });
-    setIsEditing(false);
-    setShowSaveSuccess(true);
-    setTimeout(() => setShowSaveSuccess(false), 3000);
-  };
+        console.log("Fetching profile for user ID:", storedUser.id);
+        const res = await fetch(
+          `http://localhost:5000/api/hr/profile/${storedUser.id}`
+        );
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setEditForm(prev => ({ ...prev, [name]: value }));
-  };
+        console.log("Profile fetch response status:", res.status);
+        const data = await res.json();
+        console.log("Profile fetch data:", data);
 
-  const handlePhotoClick = () => {
-    if (isEditing) {
-      fileInputRef.current?.click();
-    }
-  };
+        if (!res.ok) {
+          console.error("Profile fetch error:", data.message);
+          setIsLoading(false);
+          return;
+        }
 
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setEditForm(prev => ({ ...prev, profilePhoto: reader.result }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+        // Split name into first + last
+        const nameParts = data.name.split(" ");
+
+        setProfile({
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(" ") || '',
+          email: data.email,
+          companyEmail: data.company_email || '',
+          company: data.company_name,
+          phoneNumber: data.phone_number || '',
+          country: 'EG', // Default to Egypt
+          profilePhoto: null
+        });
+        
+        setIsLoading(false);
+
+      } catch (err) {
+        console.error("Profile fetch error:", err);
+        setIsLoading(false);
+      }
+    };
+
+    fetchProfile();
+  }, []);
 
   const handleRequestPasswordChange = () => {
     setPasswordStep('verify');
@@ -84,7 +107,53 @@ function ProfilePage() {
   };
 
   const getInitials = () => {
-    return `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase();
+    return `${(profile.firstName || '')[0]}${(profile.lastName || '')[0]}`.toUpperCase();
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem("hrUser"));
+      if (!storedUser) {
+        showError("No user found");
+        return;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/hr/profile/${storedUser.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(profile, null, 2),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Transform backend data to frontend format
+        const backendData = data.hr || data;
+        const nameParts = backendData.name.split(" ");
+        
+        const updatedProfile = {
+          firstName: nameParts[0] || '',
+          lastName: nameParts.slice(1).join(" ") || '',
+          email: backendData.email,
+          companyEmail: backendData.company_email || '',
+          company: backendData.company_name,
+          phoneNumber: backendData.phone_number || '',
+          country: 'EG', // Default to Egypt
+          profilePhoto: null
+        };
+        
+        setProfile(updatedProfile);
+        showSuccess("Profile updated successfully!");
+        setIsEditing(false);
+      } else {
+        showError(data.message || "Failed to update profile");
+      }
+    } catch (err) {
+      console.error("Profile update error:", err);
+      showError("Network error. Please try again.");
+    }
   };
 
   return (
@@ -93,37 +162,15 @@ function ProfilePage() {
         <div className="profile-header">
           <div className="profile-header-content">
             <h1>Profile</h1>
-            <p>Manage your account information</p>
+            <p>View and edit your account information</p>
+            <button 
+              className="edit-profile-btn"
+              onClick={() => setIsEditing(!isEditing)}
+            >
+              {isEditing ? 'Cancel Edit' : 'Edit Profile'}
+            </button>
           </div>
-          {!showPasswordSection && (
-            <div className="profile-actions">
-              {!isEditing ? (
-                <button className="edit-profile-btn" onClick={handleEdit}>
-                  <Edit2 size={18} />
-                  Edit Profile
-                </button>
-              ) : (
-                <div className="edit-actions">
-                  <button className="cancel-btn" onClick={handleCancel}>
-                    <X size={18} />
-                    Cancel
-                  </button>
-                  <button className="save-profile-btn" onClick={handleSave}>
-                    <Save size={18} />
-                    Save Changes
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
         </div>
-
-        {showSaveSuccess && (
-          <div className="save-success-banner">
-            <div className="success-icon">✓</div>
-            Profile updated successfully!
-          </div>
-        )}
 
         <div className="profile-content-simple">
           {showPasswordSection ? (
@@ -250,27 +297,31 @@ function ProfilePage() {
                 )}
 
                 {passwordStep === 'success' && (
-                  <div className="success-card">
-                    <div className="success-icon-wrapper">
-                      <Check size={40} />
+                  <div className="password-step">
+                    <div className="success-card">
+                      <div className="success-icon-wrapper">
+                        <Check size={40} />
+                      </div>
+                      <h3>Password Updated!</h3>
+                      <p>Your password has been changed successfully.</p>
                     </div>
-                    <h3>Password Updated!</h3>
-                    <p>Your password has been changed successfully.</p>
                   </div>
                 )}
               </div>
+            </div>
+          ) : isLoading ? (
+            <div className="profile-loading">
+              <div className="loading-spinner"></div>
+              <p>Loading profile information...</p>
             </div>
           ) : (
             <>
               <div className="profile-left-simple">
                 <div className="photo-section-simple">
-                  <div 
-                    className={`profile-photo-container ${isEditing ? 'editable' : ''}`}
-                    onClick={handlePhotoClick}
-                  >
-                    {editForm.profilePhoto || profile.profilePhoto ? (
+                  <div className="profile-photo-container">
+                    {profile.profilePhoto ? (
                       <img 
-                        src={editForm.profilePhoto || profile.profilePhoto} 
+                        src={profile.profilePhoto} 
                         alt="Profile" 
                         className="profile-photo"
                       />
@@ -279,20 +330,7 @@ function ProfilePage() {
                         <span className="profile-initials">{getInitials()}</span>
                       </div>
                     )}
-                    {isEditing && (
-                      <div className="photo-overlay">
-                        <Camera size={24} />
-                        <span>Change</span>
-                      </div>
-                    )}
                   </div>
-                  <input
-                    type="file"
-                    ref={fileInputRef}
-                    onChange={handlePhotoChange}
-                    accept="image/*"
-                    style={{ display: 'none' }}
-                  />
                   <h2 className="profile-name">{profile.firstName} {profile.lastName}</h2>
                 </div>
               </div>
@@ -307,10 +345,8 @@ function ProfilePage() {
                       {isEditing ? (
                         <input
                           type="text"
-                          name="firstName"
-                          value={editForm.firstName}
-                          onChange={handleInputChange}
-                          className="profile-input"
+                          onChange={(e) => setProfile({...profile, firstName: e.target.value})}
+                          className="info-input"
                         />
                       ) : (
                         <div className="info-value">{profile.firstName}</div>
@@ -322,10 +358,8 @@ function ProfilePage() {
                       {isEditing ? (
                         <input
                           type="text"
-                          name="lastName"
-                          value={editForm.lastName}
-                          onChange={handleInputChange}
-                          className="profile-input"
+                          onChange={(e) => setProfile({...profile, lastName: e.target.value})}
+                          className="info-input"
                         />
                       ) : (
                         <div className="info-value">{profile.lastName}</div>
@@ -335,19 +369,17 @@ function ProfilePage() {
                     <div className="info-item full-width">
                       <label>
                         <Mail size={14} />
-                        Email Address
+                        Work Email
                       </label>
-                      {isEditing ? (
-                        <input
-                          type="email"
-                          name="email"
-                          value={editForm.email}
-                          onChange={handleInputChange}
-                          className="profile-input"
-                        />
-                      ) : (
-                        <div className="info-value">{profile.email}</div>
-                      )}
+                      <div className="info-value">{profile.email}</div>
+                    </div>
+
+                    <div className="info-item full-width">
+                      <label>
+                        <Mail size={14} />
+                        Company Email
+                      </label>
+                      <div className="info-value">{profile.companyEmail || 'Not provided'}</div>
                     </div>
 
                     <div className="info-item full-width">
@@ -358,13 +390,28 @@ function ProfilePage() {
                       {isEditing ? (
                         <input
                           type="text"
-                          name="company"
-                          value={editForm.company}
-                          onChange={handleInputChange}
-                          className="profile-input"
+                          onChange={(e) => setProfile({...profile, company: e.target.value})}
+                          className="info-input"
                         />
                       ) : (
                         <div className="info-value">{profile.company}</div>
+                      )}
+                    </div>
+
+                    <div className="info-item full-width">
+                      <label>
+                        <Building size={14} />
+                        Phone Number
+                      </label>
+                      {isEditing ? (
+                        <PhoneInput
+                          value={profile.phoneNumber}
+                          onChange={(value) => setProfile({...profile, phoneNumber: value})}
+                          name="phoneNumber"
+                          country={profile.country}
+                        />
+                      ) : (
+                        <div className="info-value">{profile.phoneNumber || 'Not provided'}</div>
                       )}
                     </div>
                   </div>
@@ -379,16 +426,26 @@ function ProfilePage() {
                       </div>
                       <div>
                         <div className="security-title">Password</div>
-                        <div className="security-desc">Last changed 3 months ago</div>
                       </div>
                     </div>
-                    <button 
-                      className="change-password-btn"
-                      onClick={() => setShowPasswordSection(true)}
-                    >
-                      Change
-                    </button>
                   </div>
+                  
+                  {isEditing && (
+                    <button 
+                      className="save-profile-btn"
+                      onClick={handleSaveProfile}
+                    >
+                      <Check size={16} />
+                      Save Profile
+                    </button>
+                  )}
+                  
+                  <button 
+                    className="change-password-btn"
+                    onClick={() => setShowPasswordSection(true)}
+                  >
+                    Change
+                  </button>
                 </div>
               </div>
             </>

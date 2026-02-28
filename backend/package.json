@@ -10,11 +10,22 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@react-oauth/google": "^0.13.4",
     "axios": "^1.13.5",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "nodemailer": "^8.0.1",
+    "passport": "^0.7.0",
+    "passport-azure-ad": "^4.3.5",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-linkedin-oauth2": "^2.0.0",
+    "passport-microsoft": "^2.1.0",
     "pg": "^8.18.0"
   }
 }

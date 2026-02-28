@@ -1,24 +1,103 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { FaGithub } from "react-icons/fa";
 import { FaLinkedin } from "react-icons/fa";
 import { FaMicrosoft } from "react-icons/fa";
+import { useToast } from "../contexts/ToastContext";
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { showError, showSuccess } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    navigate("/dashboard");
-  };
+ const handleLogin = async (e) => {
+  e.preventDefault();
+  
+  try {
+    console.log("Attempting login with:", { email, password });
+    
+    const res = await fetch("http://localhost:5000/api/hr/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password })
+    });
 
-  const handleSocialLogin = (provider) => {
-    // Handle social media login logic here
-    console.log(`Logging in with ${provider}`);
+    console.log("Response status:", res.status);
+    console.log("Response ok:", res.ok);
+
+    const data = await res.json();
+    console.log("Response data:", data);
+
+    if (!res.ok) {
+      showError(data.message);
+      return;
+    }
+
+    console.log("Login success:", data.hr);
+
+    // Save HR info locally
+    const userToStore = {
+      id: data.hr.id,
+      email: data.hr.email,
+      name: data.hr.name
+    };
+    console.log("Storing user data:", userToStore);
+    localStorage.setItem("hrUser", JSON.stringify(userToStore));
+    showSuccess("Login successful!");
     navigate("/dashboard");
+
+  } catch (err) {
+    console.error("Login error:", err);
+    showError("Network error. Please check your connection.");
+  }
+};
+
+
+  const handleSocialLogin = async (provider) => {
+    try {
+      // Simulate getting user info from provider
+      const dummyData = {
+        Google: { email: "hr_google@example.com", name: "John Google" },
+        GitHub: { email: "hr_github@example.com", name: "Jane GitHub" },
+        LinkedIn: { email: "hr_linkedin@example.com", name: "Linda LinkedIn" },
+        Microsoft: { email: "hr_microsoft@example.com", name: "Mike Microsoft" },
+      };
+
+      const socialUser = dummyData[provider];
+
+      const response = await fetch("http://localhost:5000/api/hr/social-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(socialUser),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        // Save token in localStorage for now
+        localStorage.setItem("token", data.token);
+        console.log("User info:", data.user);
+        
+        // Check if required fields are missing
+        if (!data.user.phone_number || !data.user.company_email) {
+          // Save user data and redirect to profile page to complete registration
+          localStorage.setItem("hrUser", JSON.stringify(data.user));
+          showSuccess("Social login successful! Please complete your profile information.");
+          navigate("/profile");
+        } else {
+          // User has complete info, go to dashboard
+          localStorage.setItem("hrUser", JSON.stringify(data.user));
+          showSuccess("Login successful!");
+          navigate("/dashboard");
+        }
+      } else {
+        showError(data.message);
+      }
+    } catch (err) {
+      console.error(err);
+      showError("Social login failed");
+    }
   };
 
   return (
@@ -50,11 +129,11 @@ function LoginPage() {
         <form onSubmit={handleLogin} className="auth-form-light">
           
           <div className="form-group full-width">
-            <label>Work Email</label>
+            <label>Email (Work or Company)</label>
             <input
               type="email"
               className="input"
-              placeholder="name@company.com"
+              placeholder="Enter your email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -93,13 +172,7 @@ function LoginPage() {
             Continue with Google
           </button>
           
-          <button 
-            className="social-btn github-btn"
-            onClick={() => handleSocialLogin('GitHub')}
-          >
-            <FaGithub size={20} />
-            Continue with GitHub
-          </button>
+          
           
           <button 
             className="social-btn linkedin-btn"
