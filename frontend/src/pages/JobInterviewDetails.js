@@ -222,7 +222,7 @@ HR Team`);
             phaseOrder: currentPhase.phase_order,
             jobId: jobId,
             jobApplicationIds,
-            quizLink: `https://example.com/quiz/${currentPhase.phase_order}`
+            quizLink: `http://localhost:3000/interview/${jobId}/${currentPhase.id}/start`
           }
         );
 

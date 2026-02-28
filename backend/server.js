@@ -18,12 +18,15 @@ const candidateAnswerRoutes = require("./routes/candidateAnswerRoutes");
 
 
 
-
+const interviewUploadRoutes = require("./routes/interviewUploadRoutes");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.use("/api", interviewUploadRoutes);
+
 
 app.use("/api/hr", hrRoutes);
 app.use("/api/job", jobRoutes);
