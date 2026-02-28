@@ -1,35 +1,11 @@
-<<<<<<< HEAD
-// db.js
-const { Pool } = require("pg");
-=======
-const { Pool } = require("pg");
-require("dotenv").config();
->>>>>>> origin/Combined_with_whisper
+const { Pool } = require('pg');
 
-// Create a new connection pool
 const pool = new Pool({
-<<<<<<< HEAD
-  user: "postgres",                 // PostgreSQL username
-  host: "localhost",                // PostgreSQL host
-  database: "cv_ranking_db",        // your database name
-  password: "Malak#pg1", // your password
-  port: 5432,                       // default PostgreSQL port
-});
-
-// Test the connection
-pool.connect((err, client, release) => {
-  if (err) {
-    return console.error("Error acquiring client", err.stack);
-  }
-  console.log("PostgreSQL connected successfully ✅");
-  release();
-=======
-  user: "postgres",
-  host: "localhost",
-  database: "hiring_system",
-  password: "aloalo123",
-  port: 5432,
->>>>>>> origin/Combined_with_whisper
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD, // must be a string
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  database: process.env.DB_NAME,
 });
 
 module.exports = pool;

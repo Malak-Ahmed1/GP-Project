@@ -181,4 +181,40 @@ router.get("/:hrId", async (req, res) => {
   }
 });
 
+// SOCIAL LOGIN
+// -------------------
+router.post("/social-login", async (req, res) => {
+  const { provider, email, name, providerId } = req.body;
+
+  try {
+    console.log("Social login attempt:", { provider, email, name });
+
+    // Check if HR exists with this email
+    const hrQuery = await pool.query(
+      "SELECT * FROM hr WHERE email = $1 OR company_email = $1", 
+      [email]
+    );
+
+    let hr;
+    if (hrQuery.rows.length === 0) {
+      // Create new HR user from social login
+      const result = await pool.query(
+        `INSERT INTO hr (name, email, company_email, password)
+         VALUES ($1, $2, $3, $4) RETURNING *`,
+        [name, email, email, 'social-login'] // Placeholder password
+      );
+      hr = result.rows[0];
+      console.log("Created new HR from social login:", hr.email);
+    } else {
+      hr = hrQuery.rows[0];
+      console.log("Found existing HR for social login:", hr.email);
+    }
+
+    res.status(200).json({ message: "Social login successful", hr });
+  } catch (err) {
+    console.error("Social login error:", err.message);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router; 

@@ -23,6 +23,7 @@ function RankingPage() {
   const [emailBody, setEmailBody] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [sendingEmails, setSendingEmails] = useState(false);
 
   // Email credentials state
   const [hrEmail, setHrEmail] = useState("");
@@ -89,11 +90,54 @@ function RankingPage() {
     updateJobStatus(newStatus);
   };
 
-  const handleApplyRanking = (rankingParams) => {
-    // Apply ranking logic here
-     fetchRanking(); // Refresh data with ranking applied
+  const handleApplyRanking = async () => {
+  try {
+    console.log("Applying ranking to all candidates");
+    console.log("Current candidates:", candidates);
+
+    // Get candidate IDs (not job_application_ids)
+    const candidateIds = candidates
+      .filter(c => c.id && c.id !== null && c.id !== undefined)
+      .map(c => c.id);
+
+    if (candidateIds.length === 0) {
+      showError("No valid candidates available to add");
+      return;
+    }
+
+    console.log("Candidates to add:", candidateIds);
+
+    // Step 1: Mark all job applications as passed (for CV ranking)
+    console.log("Step 1: Marking all applications as passed...");
+    const markPassedResponse = await fetch(`http://localhost:5000/api/candidate/mark-all-passed/${jobId}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    const markPassedResult = await markPassedResponse.json();
+
+    if (!markPassedResponse.ok) {
+      throw new Error(markPassedResult.error || 'Failed to mark applications as passed');
+    }
+
+    console.log(`Marked ${markPassedResult.count} applications as passed`);
+    
+    // Success message with complete flow information
+    showSuccess(
+      `CV Ranking Applied Successfully! 🎯\n`
+    );
+
+    // Refresh ranking table
+    await fetchRanking();
     setRankingApplied(true);
-  };
+
+  } catch (error) {
+    console.error('Error applying ranking:', error);
+    showError(`Failed to apply ranking: ${error.message}`);
+  }
+};
 
   const fetchRanking = async () => {
     setLoading(true);
@@ -148,103 +192,143 @@ function RankingPage() {
 
   const handleSendEmails = async () => {
     console.log("handleSendEmails called");
-    console.log("hrEmail:", hrEmail);
-    console.log("hrPassword:", hrPassword ? "provided" : "missing");
-    console.log("hrPassword length:", hrPassword.length);
     console.log("selectedIds:", selectedIds);
     console.log("actionType:", actionType);
     console.log("emailBody:", emailBody);
     
     try {
+      setSendingEmails(true);
+      
       // Get selected candidates' details
       const selectedCandidates = candidates.filter(c => selectedIds.includes(c.id));
       console.log("selectedCandidates:", selectedCandidates.length);
       
       if (selectedCandidates.length === 0) {
         showError("No candidates selected");
+        setSendingEmails(false); // Reset loading state
         return;
       }
       
-      // Prepare email data with HR's custom content
-      const emails = selectedCandidates.map(candidate => ({
-        to: candidate.email,
-        subject: actionType === "Approval" 
-          ? `Congratulations! Next Round - ${jobTitle}`
-          : `Technical Assessment - ${jobTitle}`,
-        body: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0; font-size: 28px;">${actionType === "Approval" ? "🎉 Congratulations!" : "📝 Technical Assessment"}</h1>
-            </div>
-            
-            <div style="background: white; padding: 30px; border: 1px solid #e2e8f0; border-radius: 0 0 10px 10px;">
-              <h2 style="color: #2d3748; margin-top: 0;">Dear ${candidate.name},</h2>
-              
-              <p style="color: #4a5568; line-height: 1.6;">
-                ${actionType === "Approval" 
-                  ? `We are pleased to inform you that your application for <strong>${jobTitle}</strong> has been successful! You have been selected to proceed to the next round of our hiring process.`
-                  : `Thank you for your interest in the <strong>${jobTitle}</strong> position. We would like to invite you to complete a technical assessment as part of our evaluation process.`
-                }
-              </p>
-              
-              <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                <p style="color: #2d3748; margin: 0; white-space: pre-wrap;">${emailBody}</p>
-              </div>
-              
-              <div style="text-align: center; margin: 30px 0;">
-                <a href="#" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">
-                  ${actionType === "Approval" ? "View Next Steps" : "Take Assessment"}
-                </a>
-              </div>
-              
-              <p style="color: #718096; font-size: 14px; margin-top: 30px;">
-                This email was sent regarding your application for ${jobTitle}. If you have any questions, please don't hesitate to contact us.
-              </p>
-              
-              <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-                Best regards,<br>
-                The Hiring Team<br>
-                <small>Sent from: ${hrEmail}</small>
-              </p>
-            </div>
-          </div>
-        `
-      }));
+      if (actionType === "Approval") {
+        // Use the same logic as JobInterviewDetails for approval emails (no credentials needed)
+        const emails = selectedCandidates.map(candidate => {
+          if (!candidate || !candidate.email) return null;
 
-      console.log("Prepared emails:", emails.length);
+          return {
+            to: candidate.email,
+            subject: `Congratulations ${candidate.name}! You passed CV Ranking`,
+            body: emailBody
+              .replace('{candidateName}', candidate.name)
+              .replace('{phaseName}', 'CV Ranking')
+              .replace('{phaseOrder}', '1')
+              .replace('{jobTitle}', jobTitle)
+          };
+        }).filter(e => e !== null);
 
-      // Send emails via backend API with HR credentials
-      const response = await fetch('http://localhost:5000/api/email/send-acceptance', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          emails,
-          hrEmail: hrEmail,
-          hrPassword: hrPassword
-        })
-      });
+        // Send acceptance emails using the same endpoint as JobInterviewDetails (no credentials)
+        const response = await fetch('http://localhost:5000/api/email/send-acceptance', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ emails })
+        });
 
-      console.log("Response status:", response.status);
-      const data = await response.json();
-      console.log("Response data:", data);
+        const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.message || data.error || 'Failed to send emails');
+        if (!response.ok) {
+          throw new Error(data.message || data.error || 'Failed to send emails');
+        }
+
+        showSuccess(`Approval emails sent successfully to ${selectedCandidates.length} candidates!`);
+        setShowModal(false);
+        
+      } else {
+        // For Quiz emails, use the same logic as JobInterviewDetails (requires credentials)
+        if (!hrEmail || !hrPassword) {
+          showError("Email credentials are required for sending quiz emails");
+          setSendingEmails(false); // Reset loading state
+          return;
+        }
+
+        // First, we need to get job application IDs for selected candidates
+        const jobApplicationIds = await Promise.all(
+          selectedCandidates.map(async (candidate) => {
+            try {
+              const response = await fetch(`http://localhost:5000/api/candidate/applications/${candidate.id}`);
+              const data = await response.json();
+              
+              if (response.ok && data.applications && data.applications.length > 0) {
+                // Find the application for this job
+                const jobApp = data.applications.find(app => app.job_id === parseInt(jobId));
+                return jobApp ? jobApp.id : null;
+              }
+              return null;
+            } catch (error) {
+              console.error(`Error getting application for candidate ${candidate.id}:`, error);
+              return null;
+            }
+          })
+        );
+
+        const validJobApplicationIds = jobApplicationIds.filter(id => id !== null);
+
+        if (validJobApplicationIds.length === 0) {
+          showError('No valid job applications found for selected candidates');
+          setSendingEmails(false); // Reset loading state
+          return;
+        }
+
+        console.log('Sending quiz to jobApplicationIds:', validJobApplicationIds);
+
+        // Get Phase 1 for this job
+        const phaseResponse = await fetch(`http://localhost:5000/api/phase/job/${jobId}`);
+        const phaseData = await phaseResponse.json();
+
+        if (phaseData.length === 0) {
+          showError('No phases found for this job');
+          setSendingEmails(false); // Reset loading state
+          return;
+        }
+
+        const firstPhase = phaseData[0];
+
+        // Send quiz using the same endpoint as JobInterviewDetails (requires credentials)
+        const quizResponse = await fetch('http://localhost:5000/api/quiz/assign-and-send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phase_id: firstPhase.id,
+            phaseOrder: firstPhase.phase_order,
+            jobId: jobId,
+            jobApplicationIds: validJobApplicationIds,
+            quizLink: `http://localhost:3000/interview/${jobId}/${firstPhase.id}/start`,
+            hrEmail: hrEmail,
+            hrPassword: hrPassword
+          })
+        });
+
+        const quizData = await quizResponse.json();
+
+        if (!quizResponse.ok) {
+          throw new Error(quizData.message || quizData.error || 'Failed to send quiz');
+        }
+
+        showSuccess(`Quiz emails sent successfully to ${validJobApplicationIds.length} candidates!`);
+        setShowModal(false);
+        
+        // Reset credentials after successful send
+        setHrEmail("");
+        setHrPassword("");
+        setShowPassword(false);
       }
-
-      showSuccess(`${actionType} emails sent successfully to ${selectedCandidates.length} candidates from ${hrEmail}!`);
-      setShowModal(false);
-      
-      // Reset credentials after successful send
-      setHrEmail("");
-      setHrPassword("");
-      setShowPassword(false);
-      
     } catch (error) {
       console.error('Error sending emails:', error);
       showError(`Failed to send emails: ${error.message}`);
+    } finally {
+      setSendingEmails(false);
     }
   };
 
@@ -439,9 +523,10 @@ function RankingPage() {
 
               <button
                 className="primary-btn"
-                onClick={() => setModalStep(3)}
+                onClick={actionType === "Approval" ? handleSendEmails : () => setModalStep(3)}
+                disabled={sendingEmails || selectedIds.length === 0}
               >
-                Next
+                {sendingEmails ? 'Sending...' : (actionType === "Approval" ? "Send Emails" : "Next")}
               </button>
             </div>
           </>
@@ -533,9 +618,9 @@ function RankingPage() {
               <button
                 className="primary-btn-send"
                 onClick={handleSendEmails}
-                disabled={!hrEmail || !hrPassword || hrPassword.length < 16}
+                disabled={sendingEmails || (actionType !== "Approval" && (!hrEmail || !hrPassword || hrPassword.length < 16))}
               >
-                Send Emails
+                {sendingEmails ? 'Sending...' : 'Send Emails'}
               </button>
             </div>
           </>

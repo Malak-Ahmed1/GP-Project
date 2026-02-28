@@ -354,4 +354,55 @@ router.put("/update-job/:jobId", async (req, res) => {
   }
 });
 
+// GET /api/job/:jobId - Get single job
+router.get("/:jobId", async (req, res) => {
+  const { jobId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT j.*, h.name as hr_name, h.company_name
+       FROM job j
+       JOIN hr h ON j.hr_id = h.id
+       WHERE j.id = $1`,
+      [jobId]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error("Get job error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/job - Get jobs for HR
+router.get("/", async (req, res) => {
+  try {
+    const { hr_id } = req.query;
+    
+    if (!hr_id) {
+      return res.status(400).json({ error: "hr_id query parameter is required." });
+    }
+
+    const result = await pool.query(
+      `SELECT j.*, h.name as hr_name, h.company_name
+       FROM job j
+       JOIN hr h ON j.hr_id = h.id
+       WHERE j.hr_id = $1
+       ORDER BY j.id ASC`,
+      [hr_id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error("Get jobs error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router; 

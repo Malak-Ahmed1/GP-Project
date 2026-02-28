@@ -9,31 +9,75 @@ function InterviewsPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Fetch jobs dynamically from backend
-    API.get("/job", { params: { hr_id: 1 } }) // replace hr_id dynamically if needed
-      .then((res) => {
-        const jobsData = res.data.map((job) => ({
-          ...job,
-          status: job.available ? "open" : "closed",
-        }));
+    const fetchJobs = async () => {
+      try {
+        const storedUser = JSON.parse(localStorage.getItem("hrUser"));
 
-        setJobs(
-          jobsData.length
-            ? jobsData
-            : [
-                { id: "test-123", title: "Frontend Developer", status: "open" },
-                { id: "test-456", title: "Backend Engineer", status: "open" },
-              ]
+        if (!storedUser) {
+          console.error('No HR user found in localStorage');
+          setLoading(false);
+          return;
+        }
+
+        console.log("Fetching HR data for user ID:", storedUser.id);
+
+        const res = await fetch(
+          `http://localhost:5000/api/hr/${storedUser.id}`
         );
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.message);
+        }
+
+        console.log("HR jobs fetched:", data);
+
+        // Fetch details for each job to check available field
+        const jobsWithDetails = await Promise.all(
+          data.map(async (job) => {
+            try {
+              const detailRes = await fetch(`http://localhost:5000/api/job/details/${job.id}`);
+              const detailData = await detailRes.json();
+              
+              if (detailRes.ok) {
+                console.log(`Job ${job.id} - Available field: ${detailData.available}, Calculated status: ${detailData.status}`);
+                return {
+                  ...job,
+                  status: detailData.status, // Use the calculated status from backend
+                  available: detailData.available // Keep available for debugging
+                };
+              }
+              return job;
+            } catch (err) {
+              console.error(`Failed to fetch details for job ${job.id}:`, err);
+              return job;
+            }
+          })
+        );
+
+        console.log("Jobs with details:", jobsWithDetails);
+        setJobs(jobsWithDetails);
         setLoading(false);
-      })
-      .catch(() => {
-        setJobs([
-          { id: "test-123", title: "Frontend Developer", status: "open" },
-          { id: "test-456", title: "Backend Engineer", status: "open" },
-        ]);
+
+      } catch (err) {
+        console.error("Fetch jobs error:", err);
+        
+        // Only show fallback data in development, not in production
+        if (process.env.NODE_ENV === 'development') {
+          console.log("Showing development fallback data");
+          setJobs([
+            { id: "test-123", title: "Frontend Developer", status: "open" },
+            { id: "test-456", title: "Backend Engineer", status: "open" },
+          ]);
+        } else {
+          setJobs([]); // Empty array in production if DB fails
+        }
         setLoading(false);
-      });
+      }
+    };
+
+    fetchJobs();
   }, []);
 
   // Copy job link function
@@ -42,6 +86,21 @@ function InterviewsPage() {
     navigator.clipboard.writeText(link);
     alert("Job link copied!");
     setActiveMenu(null); // close menu after copy
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "No end date set";
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+
+  const isExpired = (endDate) => {
+    if (!endDate) return false;
+    return new Date(endDate) <= new Date();
   };
 
   return (
@@ -57,7 +116,29 @@ function InterviewsPage() {
         </div>
 
         {loading ? (
-          <p>Loading jobs...</p>
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <p>Loading jobs from database...</p>
+          </div>
+        ) : jobs.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}>
+            <h3>No Jobs Found</h3>
+            <p style={{ color: '#718096' }}>
+              You haven't created any jobs yet. 
+              <button 
+                onClick={() => navigate('/create-job')}
+                style={{ 
+                  background: 'none', 
+                  border: 'none', 
+                  color: '#3182ce', 
+                  textDecoration: 'underline',
+                  cursor: 'pointer',
+                  marginLeft: '5px'
+                }}
+              >
+                Create your first job
+              </button>
+            </p>
+          </div>
         ) : (
           <div className="job-grid">
             {jobs.map((job) => (
@@ -74,6 +155,14 @@ function InterviewsPage() {
                       {job.status === "open" ? "● Opening" : "● Closed"}
                     </span>
                     <h3>{job.title}</h3>
+                    <div className="job-meta">
+                      <span className={`end-date ${isExpired(job.end_date) ? 'expired' : ''}`}>
+                        {formatDate(job.end_date)}
+                      </span>
+                      {job.end_date && isExpired(job.end_date) && (
+                        <span className="expired-badge">Expired</span>
+                      )}
+                    </div>
                   </div>
 
                   {/* Three dots menu */}

@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
-const { sendQuizLink ,getCandidatesForPhaseSelection, 
+const { getCandidatesForPhaseSelection, 
   assignCandidatesToPhase,assignAndSendQuiz } = require("../controllers/quizController");
 
 // POST: send quiz link to candidates
-router.post("/send-quiz", sendQuizLink);
+// router.post("/send-quiz", sendQuizLink);
 
 // ✅ FIXED: GET selectable candidates for a phase
 // Remove /phase-candidates from path here

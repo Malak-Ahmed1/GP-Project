@@ -7,7 +7,11 @@ const transporter = nodemailer.createTransport({
   auth: {
     user: process.env.EMAIL_USER, // your gmail
     pass: process.env.EMAIL_PASS  // your app password
-  }
+  },
+  tls: {
+    rejectUnauthorized: false // Allow self-signed certificates
+  },
+  secure: false // Use TLS
 });
 
 // Helper to send email
@@ -169,12 +173,6 @@ exports.assignCandidatesToPhase = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 // Assign selected candidates to phase AND send quiz link
 exports.assignAndSendQuiz = async (req, res) => {
   try {
@@ -184,17 +182,17 @@ exports.assignAndSendQuiz = async (req, res) => {
       return res.status(400).json({ error: "No candidates selected." });
     }
 
-    const insertedCandidates = [];
+    const candidatesToSendEmail = [];
 
-    // 1️⃣ Insert selected candidates into phase_candidates
+    // 1️⃣ Insert selected candidates into phase_candidates (if not already there)
     for (let jobAppId of jobApplicationIds) {
       const duplicateCheck = await pool.query(
         `SELECT * FROM phase_candidates WHERE phase_id = $1 AND job_application_id = $2`,
         [phase_id, jobAppId]
       );
+      
       if (duplicateCheck.rows.length === 0) {
         // get cgpa value
-// get cgpa value from previous phase
 let cgpaValue = 0;
 
 if (phaseOrder > 1) {
@@ -220,16 +218,19 @@ const insert = await pool.query(
    RETURNING *`,
   [phase_id, jobAppId, cgpaValue]
 );
-        insertedCandidates.push(insert.rows[0]);
+        candidatesToSendEmail.push(insert.rows[0]);
+      } else {
+        // Candidate already exists in phase, but we still want to send quiz email
+        candidatesToSendEmail.push(duplicateCheck.rows[0]);
       }
     }
 
-    if (insertedCandidates.length === 0) {
-      return res.status(400).json({ message: "Selected candidates are already assigned." });
+    if (candidatesToSendEmail.length === 0) {
+      return res.status(400).json({ message: "No valid candidates found." });
     }
 
     // 2️⃣ Send quiz link emails
-    for (let candidate of insertedCandidates) {
+    for (let candidate of candidatesToSendEmail) {
       const candidateData = await pool.query(
         `SELECT c.name, c.email
          FROM job_application ja
@@ -257,8 +258,8 @@ const insert = await pool.query(
     );
 
     res.json({
-      message: `Quiz sent and ${insertedCandidates.length} candidates assigned successfully!`,
-      phase_candidates: insertedCandidates
+      message: `Quiz sent to ${candidatesToSendEmail.length} candidates successfully!`,
+      phase_candidates: candidatesToSendEmail
     });
 
   } catch (err) {

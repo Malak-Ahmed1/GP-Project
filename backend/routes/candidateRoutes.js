@@ -6,9 +6,8 @@ const router = express.Router();
 // =========================================
 // APPLY TO JOB
 // =========================================
-const upload = require("../middleware/uploads");
 
-router.post("/apply/:jobId", upload.single("cv"), async (req, res) => {
+router.post("/apply/:jobId", async (req, res) => {
   const client = await pool.connect();
   const { jobId } = req.params;
   const cv_link = req.file
@@ -193,8 +192,123 @@ router.get("/candidates/:jobId", async (req, res) => {
   }
 });
 
+// GET CANDIDATE BY ID
+router.get("/:candidateId", async (req, res) => {
+  const { candidateId } = req.params;
 
+  try {
+    const result = await pool.query(
+      "SELECT * FROM candidate WHERE id = $1",
+      [candidateId]
+    );
 
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
 
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error("Error fetching candidate:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET CANDIDATE DETAILS WITH APPLICATIONS
+router.get("/details/:candidateId", async (req, res) => {
+  const { candidateId } = req.params;
+
+  try {
+    // Get candidate basic info
+    const candidateResult = await pool.query(
+      "SELECT * FROM candidate WHERE id = $1",
+      [candidateId]
+    );
+
+    if (candidateResult.rows.length === 0) {
+      return res.status(404).json({ message: "Candidate not found" });
+    }
+
+    const candidate = candidateResult.rows[0];
+
+    res.json(candidate);
+  } catch (err) {
+    console.error("Error fetching candidate details:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// GET CANDIDATE APPLICATIONS
+router.get("/:candidateId/applications", async (req, res) => {
+  const { candidateId } = req.params;
+
+  try {
+    const applicationsResult = await pool.query(
+      `SELECT ja.id, ja.job_id as "jobId", j.title as "jobTitle",
+              h.company_name as "companyName",
+              ja.applied_at as "dateApplied",
+              ja.score_cv as "overallScore",
+              ja.cgpa
+       FROM job_application ja
+       JOIN job j ON ja.job_id = j.id
+       JOIN hr h ON j.hr_id = h.id
+       WHERE ja.candidate_id = $1
+       ORDER BY ja.applied_at DESC`,
+      [candidateId]
+    );
+
+    const applications = [];
+
+    for (const app of applicationsResult.rows) {
+      // Get phases for each job application
+      const phasesResult = await pool.query(
+        `SELECT pc.id, p.phase_order as "phaseOrder", p.method, pc.phase_score as "score", 
+                pc.passed as "status", pc.time_enter as "submittedAt"
+         FROM phase_candidates pc
+         JOIN phase p ON pc.phase_id = p.id
+         WHERE pc.job_application_id = $1
+         ORDER BY p.phase_order ASC`,
+        [app.id]
+      );
+
+      applications.push({
+        ...app,
+        phases: phasesResult.rows
+      });
+    }
+
+    res.json(applications);
+  } catch (err) {
+    console.error("Error fetching candidate applications:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// PATCH /api/candidate/mark-all-passed/:jobId
+router.patch("/mark-all-passed/:jobId", async (req, res) => {
+  try {
+    const { jobId } = req.params;
+
+    if (!jobId) return res.status(400).json({ error: "Job ID is required" });
+
+    // Update all job applications for this job
+    const result = await pool.query(
+      `UPDATE job_application 
+       SET passed = TRUE
+       WHERE job_id = $1
+       RETURNING id`,
+      [jobId]
+    );
+
+    res.status(200).json({
+      message: "All applications marked as passed",
+      count: result.rowCount,
+      updatedApplications: result.rows
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 module.exports = router;

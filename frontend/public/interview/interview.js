@@ -8,6 +8,7 @@ const BACKEND = 'http://127.0.0.1:5000';
 const params = new URLSearchParams(window.location.search);
 const jobId = params.get("jobId");
 const phaseId = params.get("phaseId");
+const pcId = params.get("pcId");   // ✅ NEW
 const qIndex = parseInt(params.get("q") || "0", 10);
 startBtn.disabled = true;
 const nextBtn = document.getElementById("nextBtn");
@@ -23,6 +24,12 @@ async function loadQuestion() {
     questionEl.textContent = "Error: phaseId missing in URL";
     return;
   }
+
+  if (!pcId) {
+  questionEl.textContent = "Error: pcId missing in URL";
+  startBtn.disabled = true;
+  return;
+}
 
   const res = await fetch(`${BACKEND}/api/questions/phase/${phaseId}`);
   const data = await res.json();
@@ -108,6 +115,19 @@ try {
     <b>Similarity:</b> ${(data.similarity * 100).toFixed(2)}%
   `;
 
+    // ✅ SAVE ANSWER TO DB
+  await fetch(`${BACKEND}/api/candidate-answer`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      phase_candidate_id: pcId,
+      question_item_id: currentQuestion.id,
+      raw_answer: data.raw_transcript,
+      polished_answer: data.polished_transcript,
+      score: Math.round((data.similarity || 0) * 100)
+    })
+  });
+
   // ✅ ENABLE NEXT BUTTON AFTER SUCCESSFUL UPLOAD
   nextBtn.disabled = false;
 
@@ -141,5 +161,5 @@ nextBtn.onclick = () => {
   }
 
   const nextIndex = qIndex + 1;
-  window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&q=${nextIndex}`;
+window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&pcId=${pcId}&q=${nextIndex}`;
 };

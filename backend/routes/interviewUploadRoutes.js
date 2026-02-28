@@ -8,7 +8,7 @@ const router = express.Router();
 const upload = multer({ dest: "uploads/" });
 
 // POST /api/upload
-router.post("/upload", upload.single("video"), (req, res) => {
+router.post("/", upload.single("video"), (req, res) => {
   const { ideal_answer } = req.body;
   const filePath = req.file.path;
 

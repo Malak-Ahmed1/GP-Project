@@ -171,25 +171,39 @@ router.post("/send-acceptance", async (req, res) => {
       return res.status(400).json({ message: "No emails provided" });
     }
 
-    if (!hrEmail || !hrAppPassword) {
-      return res.status(400).json({ message: "Missing HR Gmail credentials" });
-    }
+    let transporter;
 
-    // Setup Nodemailer
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: hrEmail,
-        pass: hrAppPassword
-      }
-    });
+    // Check if HR credentials are provided (for quiz emails) or use system email (for approval emails)
+    if (hrEmail && hrAppPassword) {
+      // Use HR credentials
+      transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: hrEmail,
+          pass: hrAppPassword
+        }
+      });
+    } else {
+      // Use system email from mailer.js
+      transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        },
+        tls: {
+          rejectUnauthorized: false // Allow self-signed certificates
+        },
+        secure: false // Use TLS
+      });
+    }
 
     const emailPromises = emails.map(async (emailData) => {
       const { to, subject, body } = emailData;
 
       try {
         await transporter.sendMail({
-          from: hrEmail,
+          from: transporter.options.auth.user,
           to,
           subject,
           html: body

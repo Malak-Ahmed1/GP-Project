@@ -11,8 +11,17 @@ function StartInterviewPage() {
     setTimeout(() => setLoading(false), 500);
   }, []);
 
- const handleStartInterview = () => {
-window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&q=0`;};
+const handleStartInterview = () => {
+  const params = new URLSearchParams(window.location.search);
+  const pcId = params.get("pcId");
+
+  if (!pcId) {
+    alert("Invalid link: pcId missing. Please use the email link.");
+    return;
+  }
+
+  window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&pcId=${pcId}&q=0`;
+};
 
   if (loading) {
     return (

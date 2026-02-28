@@ -5,7 +5,8 @@ const {
   assignCandidateToPhase,
   getPhaseCandidates,
   updatePhaseCandidateWithCGPA,
-  deletePhaseCandidate,markCandidatesPassed
+  deletePhaseCandidate,
+  markCandidatesPassed
 } = require("../controllers/phaseCandidateController");
 
 // Assign candidate to a phase
