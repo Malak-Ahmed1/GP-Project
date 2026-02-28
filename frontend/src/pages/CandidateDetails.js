@@ -29,119 +29,59 @@ function CandidateDetails() {
     navigate(getBackPath());
   };
 
-  useEffect(() => {
-    // Fetch candidate details and applications
-    setTimeout(() => {
-      // Mock candidate data from form
-      const mockCandidate = {
-        id: candidateId,
-        name: 'John Doe',
-        email: 'john.doe@example.com',
-        phone: '+1 (555) 123-4567',
-        address: '123 Main St, New York, NY 10001',
-        bio: 'Experienced frontend developer with 5+ years in React, TypeScript, and modern web technologies.',
-        experience: '5 years',
-        education: 'Bachelor of Science in Computer Science',
-        skills: ['React', 'TypeScript', 'JavaScript', 'CSS', 'HTML', 'Node.js', 'Git'],
-        portfolio: 'https://johndoe-portfolio.com',
-        linkedin: 'https://linkedin.com/in/johndoe',
-        github: 'https://github.com/johndoe',
-        resume: '/resumes/john-doe-resume.pdf',
-        dateApplied: '2026-02-01',
-        status: 'active'
-      };
+useEffect(() => {
+  const fetchCandidateData = async () => {
+    try {
+      setLoading(true);
 
-      // Mock job applications data
-      const mockApplications = [
-        {
-          id: 1,
-          jobId: 'JOB001',
-          jobTitle: 'Frontend Developer',
-          company: 'TechCorp Inc.',
-          status: 'completed',
-          dateApplied: '2026-02-01',
-          phases: [
-            {
-              id: 1,
-              name: 'Phase 1: Technical Screening',
-              status: 'completed',
-              score: 92,
-              maxScore: 100,
-              timeSpent: '45 min',
-              timeLimit: '60 minutes',
-              submittedAt: '2026-02-10 14:30',
-              rank: 1,
-              totalCandidates: 15
-            },
-            {
-              id: 2,
-              name: 'Phase 2: Coding Challenge',
-              status: 'completed',
-              score: 88,
-              maxScore: 100,
-              timeSpent: '75 min',
-              timeLimit: '90 minutes',
-              submittedAt: '2026-02-12 16:45',
-              rank: 3,
-              totalCandidates: 12
-            },
-            {
-              id: 3,
-              name: 'Phase 3: Final Interview',
-              status: 'in_progress',
-              score: 0,
-              maxScore: 100,
-              timeSpent: '0 min',
-              timeLimit: '120 minutes',
-              rank: null,
-              totalCandidates: 8
-            }
-          ],
-          overallScore: 90,
-          overallRank: 2
-        },
-        {
-          id: 2,
-          jobId: 'JOB002',
-          jobTitle: 'Senior React Developer',
-          company: 'StartupXYZ',
-          status: 'rejected',
-          dateApplied: '2026-01-15',
-          phases: [
-            {
-              id: 1,
-              name: 'Phase 1: Technical Screening',
-              status: 'completed',
-              score: 78,
-              maxScore: 100,
-              timeSpent: '52 min',
-              timeLimit: '60 minutes',
-              submittedAt: '2026-01-20 10:15',
-              rank: 8,
-              totalCandidates: 20
-            }
-          ],
-          overallScore: 78,
-          overallRank: 8
-        },
-        {
-          id: 3,
-          jobId: 'JOB003',
-          jobTitle: 'Full Stack Developer',
-          company: 'Digital Agency Co.',
-          status: 'pending',
-          dateApplied: '2026-02-05',
-          phases: [],
-          overallScore: 0,
-          overallRank: null
-        }
-      ];
+      // Fetch candidate details
+      const candidateRes = await fetch(`http://localhost:5000/api/candidate/${candidateId}`);
+      if (!candidateRes.ok) throw new Error("Failed to fetch candidate details");
+      const candidateData = await candidateRes.json();
 
-      setCandidate(mockCandidate);
-      setApplications(mockApplications);
+      // Fetch candidate's applications
+      const applicationsRes = await fetch(`http://localhost:5000/api/candidate/${candidateId}/applications`);
+      if (!applicationsRes.ok) throw new Error("Failed to fetch applications");
+      const applicationsData = await applicationsRes.json();
+
+      // Transform backend data to match your UI structure
+      const transformedApplications = applicationsData.map((app) => ({
+        id: app.id,
+        jobId: app.jobId,
+        jobTitle: app.jobTitle,
+        company: app.companyName || 'N/A',
+        status: app.status || 'pending',
+        dateApplied: new Date(app.dateApplied).toLocaleDateString(),
+        overallScore: app.overallScore,
+        overallRank: app.overallRank,
+        phases: app.phases.map((phase) => ({
+          id: phase.id,
+          name: `Phase ${phase.phaseOrder}`, // or phase.name if exists
+          status: phase.status ? 'completed' : 'in_progress',
+          score: phase.score,
+          maxScore: phase.maxScore,
+          timeSpent: phase.timeSpent || '0 min',
+          timeLimit: phase.timeLimit ? `${phase.timeLimit} min` : 'N/A',
+          submittedAt: phase.submittedAt ? new Date(phase.submittedAt).toLocaleString() : null,
+          rank: phase.rank,
+          totalCandidates: phase.totalCandidates,
+        })),
+      }));
+
+      setCandidate(candidateData);
+      setApplications(transformedApplications);
       setLoading(false);
-    }, 500);
-  }, [candidateId]);
+    } catch (error) {
+      console.error(error);
+      setLoading(false);
+      setCandidate(null);
+      setApplications([]);
+    }
+  };
+
+  fetchCandidateData();
+}, [candidateId]);
+
 
   if (loading) {
     return (
@@ -183,9 +123,10 @@ function CandidateDetails() {
             Back to Candidates
           </button>
           <h1>{candidate.name}</h1>
-          <span className={`status-badge ${candidate.status}`}>
-            {candidate.status.charAt(0).toUpperCase() + candidate.status.slice(1)}
-          </span>
+<span className={`status-badge ${candidate.status || 'unknown'}`}>
+  {(candidate.status || 'unknown').charAt(0).toUpperCase() + (candidate.status || 'unknown').slice(1)}
+</span>
+
         </div>
 
         {/* Single Tab Content */}
@@ -233,11 +174,12 @@ function CandidateDetails() {
           <div className="content-section">
             <h3><Award size={18} /> Skills</h3>
             <div className="skills-container">
-              {candidate.skills.map((skill, index) => (
-                <span key={index} className="skill-tag">
-                  {skill}
-                </span>
-              ))}
+              {candidate.skills?.map((skill, index) => (
+  <span key={index} className="skill-tag">
+    {skill}
+  </span>
+)) || []}
+
             </div>
           </div>
 

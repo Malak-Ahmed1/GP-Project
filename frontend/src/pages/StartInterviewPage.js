@@ -11,9 +11,8 @@ function StartInterviewPage() {
     setTimeout(() => setLoading(false), 500);
   }, []);
 
-  const handleStartInterview = () => {
-    navigate(`/interview/${jobId}/${phaseId}/take`);
-  };
+ const handleStartInterview = () => {
+window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&q=0`;};
 
   if (loading) {
     return (

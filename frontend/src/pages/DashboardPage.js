@@ -81,6 +81,7 @@ function DashboardPage() {
   }, []);
 
 
+
   const copyLink = (id) => {
     const link = `${window.location.origin}/apply/${id}`;
     navigator.clipboard.writeText(link);
@@ -217,7 +218,7 @@ function DashboardPage() {
                       )}
                     </div>
                   </div>
-                  
+
                   {/* Three Dots Menu - Only show if open */}
                   {job.status === "open" && (
                     <div className="menu-container" onClick={(e) => e.stopPropagation()}>

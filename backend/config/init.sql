@@ -70,6 +70,8 @@ CREATE TABLE job_application (
     score_cv NUMERIC(5,2),
     total_score NUMERIC(4,2) DEFAULT 0,
     applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    passed BOOLEAN DEFAULT FALSE,
+
     UNIQUE(job_id, candidate_id)
 );
 -- =========================================
@@ -77,12 +79,29 @@ CREATE TABLE job_application (
 -- =========================================
 CREATE TABLE job_application_field_answer (
     id SERIAL PRIMARY KEY,
+<<<<<<< HEAD
     job_application_id INTEGER NOT NULL 
         REFERENCES job_application(id) ON DELETE CASCADE,
     job_field_id INTEGER NOT NULL 
         REFERENCES job_field(id) ON DELETE CASCADE,
     value TEXT, -- store all answers as text
     UNIQUE(job_application_id, job_field_id)
+=======
+    job_id INTEGER NOT NULL REFERENCES job(id) ON DELETE CASCADE,
+    phase_order INTEGER NOT NULL,
+    ranked BOOLEAN DEFAULT FALSE,
+    method VARCHAR(50),
+    time_limit INTEGER,
+    available BOOLEAN DEFAULT TRUE,
+    num_questions INTEGER,
+    severity INTEGER,
+    quiz_sent BOOLEAN DEFAULT FALSE,  -- <-- default is FALSE
+
+    end_date DATE,
+    link VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(job_id, phase_order)
+>>>>>>> origin/Combined_with_whisper
 );
 
 
@@ -94,6 +113,7 @@ CREATE TABLE phase_candidates (
     phase_id INTEGER NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
     job_application_id INTEGER NOT NULL REFERENCES job_application(id) ON DELETE CASCADE,
     phase_score NUMERIC(5,2),
+    cgpa_phase_score NUMERIC(5,2),
     passed BOOLEAN DEFAULT FALSE,
     cheating_flag BOOLEAN DEFAULT FALSE,
     video_url TEXT,
@@ -124,3 +144,15 @@ CREATE TABLE candidate_answer_details (
     score NUMERIC(5,2),
     answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
+
+ALTER TABLE job
+ADD COLUMN company VARCHAR(255);
+
+ALTER TABLE job_application
+ADD COLUMN passed BOOLEAN DEFAULT FALSE;
+
+
+ALTER TABLE phase ADD COLUMN acceptance_sent BOOLEAN DEFAULT FALSE;
