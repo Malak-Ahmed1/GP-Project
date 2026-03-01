@@ -149,3 +149,22 @@ CREATE TABLE candidate_answer_details (
     score NUMERIC(5,2),
     answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+
+
+
+ALTER TABLE phase_candidates
+  ALTER COLUMN phase_score TYPE INTEGER
+  USING ROUND(phase_score)::INTEGER;
+
+ALTER TABLE phase_candidates
+  ALTER COLUMN cgpa_phase_score TYPE INTEGER
+  USING ROUND(cgpa_phase_score)::INTEGER;
+
+ALTER TABLE job_application
+  ALTER COLUMN cgpa TYPE INTEGER
+  USING ROUND(cgpa)::INTEGER;
+
+ALTER TABLE candidate_answer_details
+  ALTER COLUMN score TYPE INTEGER
+  USING ROUND(score)::INTEGER;

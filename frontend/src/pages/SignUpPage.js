@@ -216,10 +216,11 @@ const handleSocialSignUp = async (providerName) => {
           <div className="form-group full-width">
             <label>Phone Number</label>
             <PhoneInput
-              value={formData.phoneNumber}
-              onChange={handleInputChange}
-              name="phoneNumber"
-            />
+  value={formData.phoneNumber}
+  onChange={(value) =>
+    handleInputChange({ target: { name: "phoneNumber", value } })
+  }
+/>
           </div>
           <div className="form-group full-width">
             <label>Password</label>
