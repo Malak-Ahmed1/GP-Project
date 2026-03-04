@@ -11,7 +11,8 @@ function StartInterviewPage() {
     setTimeout(() => setLoading(false), 500);
   }, []);
 
-const handleStartInterview = () => {
+
+const handleStartInterview = async () => {
   const params = new URLSearchParams(window.location.search);
   const pcId = params.get("pcId");
 
@@ -20,7 +21,14 @@ const handleStartInterview = () => {
     return;
   }
 
-  window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&pcId=${pcId}&q=0`;
+  try {
+    // 1) Start screen share ONCE here
+
+    // 2) Go to interview page
+    window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&pcId=${pcId}&q=0`;
+  } catch (e) {
+    console.error(e);
+  }
 };
 
   if (loading) {

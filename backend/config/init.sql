@@ -153,6 +153,21 @@ CREATE TABLE candidate_answer_details (
 
 
 
+CREATE TABLE cheating_events (
+    id SERIAL PRIMARY KEY,
+    phase_candidate_id INTEGER
+        REFERENCES phase_candidates(id) ON DELETE CASCADE,
+
+    cheating_type VARCHAR(50),   -- what happened
+    description TEXT,            -- explanation
+    evidence TEXT,               -- screenshot / video / audio link
+
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
+
+
 ALTER TABLE phase_candidates
   ALTER COLUMN phase_score TYPE INTEGER
   USING ROUND(phase_score)::INTEGER;

@@ -73,7 +73,7 @@ function JobInterviewDetails() {
               cgpa_phase_score: Number(c.cgpa_phase_score) || 0,
 
               maxScore: 100,
-              cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
+              cheatingFlags: c.cheating_flag ? ["Cheating detected"] : [],
               submittedAt: c.date || null,
               timeSpent: 'N/A',
               answers: []
@@ -128,7 +128,11 @@ function JobInterviewDetails() {
         maxScore: 100
       }));
 
-      setSelectedCandidate({ ...candidate, answers });
+      const cheatingRes = await axios.get(
+        `http://localhost:5000/api/cheating-events/phase-candidate/${candidate.phase_candidate_id}`
+      );
+
+      setSelectedCandidate({ ...candidate, answers, cheatingEvents: cheatingRes.data });
     } catch (err) {
       console.error("Error fetching candidate answers:", err);
       alert("Failed to load candidate answers");
@@ -442,6 +446,42 @@ HR Team`);
                 <ul>
                   {selectedCandidate.cheatingFlags.map((flag, idx) => (
                     <li key={idx}>{flag}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          {selectedCandidate.cheatingEvents?.length > 0 && (
+            <div className="cheating-alert" style={{ marginTop: "12px" }}>
+              <AlertTriangle size={20} />
+              <div>
+                <strong>Cheating Events:</strong>
+                <ul>
+                  {selectedCandidate.cheatingEvents.map((e) => (
+                    <li key={e.id}>
+                      <b>{e.cheating_type}</b> — {e.description} <br />
+                      <small>{new Date(e.created_at).toLocaleString()}</small>
+                      {e.evidence && (
+                        <div>
+                          <div style={{ marginTop: "6px" }}>
+                            <img
+                              src={`http://localhost:5000${e.evidence}`}
+                              alt="evidence"
+                              style={{ width: "260px", borderRadius: "8px", border: "1px solid #ccc" }}
+                            />
+                            <div>
+<a
+  href={`http://localhost:5000${e.evidence}`}
+  target="_blank"
+  rel="noreferrer"
+>
+  Open full image
+</a>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </div>
