@@ -13,124 +13,166 @@ function PrepareQuestions() {
   const [phases, setPhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [excelFile, setExcelFile] = useState(null);
 
-  
-useEffect(() => {
-  setLoading(true);
+  useEffect(() => {
+    setLoading(true);
 
-  Promise.all([
-    API.get(`/job/${jobId}`),
-    API.get(`/phase/job/${jobId}`),
-    API.get(`/questions/job/${jobId}`)
-  ])
-    .then(([jobRes, phaseRes, questionsRes]) => {
-      const jobData = jobRes.data;
-      setJob(jobData);
+    Promise.all([
+      API.get(`/job/${jobId}`),
+      API.get(`/phase/job/${jobId}`),
+      API.get(`/questions/job/${jobId}`)
+    ])
+      .then(([jobRes, phaseRes, questionsRes]) => {
+        const jobData = jobRes.data;
+        setJob(jobData);
 
-      // Map questions by phase
-      const questionsByPhase = {};
-      questionsRes.data.forEach(q => {
-        if (!questionsByPhase[q.phase_id]) questionsByPhase[q.phase_id] = [];
-        questionsByPhase[q.phase_id].push({
-          id: q.id,
-          text: q.ques_text,
-          answer: q.correct_answer,
-          isEditing: false,
-          isEditingAnswer: false,
-          isCustom: false
+        // Map questions by phase
+        const questionsByPhase = {};
+        questionsRes.data.forEach(q => {
+          if (!questionsByPhase[q.phase_id]) questionsByPhase[q.phase_id] = [];
+          questionsByPhase[q.phase_id].push({
+            id: q.id,
+            text: q.ques_text,
+            answer: q.correct_answer,
+            isEditing: false,
+            isEditingAnswer: false,
+            isCustom: false
+          });
         });
-      });
 
-      // Map severity numbers to strings
-      const difficultyMapReverse = { 1: "easy", 2: "medium", 3: "hard", 4: "mixed" };
+        // Map severity numbers to strings
+        const difficultyMapReverse = { 1: "easy", 2: "medium", 3: "hard", 4: "mixed" };
 
-      // Merge questions and backend fields into phases
-      const fetchedPhases = phaseRes.data.map(phase => ({
+        // Merge questions and backend fields into phases
+        const fetchedPhases = phaseRes.data.map(phase => ({
+          ...phase,
+          generatedQuestions: questionsByPhase[phase.id] || [],
+          isEditingName: false,
+          jobDescription: jobData.job_desc || "",
+
+          // Map backend fields to frontend fields
+          numberOfQuestions: phase.num_questions || 5,         // <-- number of questions
+          interviewTime: phase.time_limit || 30,              // <-- time limit
+          difficultyLevel: difficultyMapReverse[phase.severity] || "easy", // <-- severity
+          closeDate: phase.end_date || ""                     // <-- close date
+        }));
+
+        setPhases(fetchedPhases);
+
+        if (fetchedPhases.length > 0) setActivePhase(fetchedPhases[0].id);
+      })
+      .catch(err => console.error("Error fetching job/phases/questions:", err))
+      .finally(() => setLoading(false));
+  }, [jobId]);
+
+
+  useEffect(() => {
+    if (!job || phases.length === 0) return;
+
+    setPhases(prev =>
+      prev.map(phase => ({
         ...phase,
-        generatedQuestions: questionsByPhase[phase.id] || [],
-        isEditingName: false,
-        jobDescription: jobData.job_desc || "",
-
-        // Map backend fields to frontend fields
-        numberOfQuestions: phase.num_questions || 5,         // <-- number of questions
-        interviewTime: phase.time_limit || 30,              // <-- time limit
-        difficultyLevel: difficultyMapReverse[phase.severity] || "easy", // <-- severity
-        closeDate: phase.end_date || ""                     // <-- close date
-      }));
-
-      setPhases(fetchedPhases);
-
-      if (fetchedPhases.length > 0) setActivePhase(fetchedPhases[0].id);
-    })
-    .catch(err => console.error("Error fetching job/phases/questions:", err))
-    .finally(() => setLoading(false));
-}, [jobId]);
-
-
-useEffect(() => {
-  if (!job || phases.length === 0) return;
-
-  setPhases(prev =>
-    prev.map(phase => ({
-      ...phase,
-      jobDescription: job.job_desc || ""  // <-- Fill job description here
-    }))
-  );
-}, [job]);
+        jobDescription: job.job_desc || ""  // <-- Fill job description here
+      }))
+    );
+  }, [job]);
 
 
 
+const uploadExcelQuestions = async (e) => {
+  e?.preventDefault();
+  e?.stopPropagation();
 
+  alert("✅ Click worked");        // IMPORTANT: alert proves the click works
+  console.log("✅ Upload button clicked");
 
-const createPhase = () => {
-  const currentPhase = phases.find(p => p.id === activePhase) || {};
+  if (!excelFile) return alert("Please choose an Excel file first.");
+  if (!currentPhase?.id) return alert("Choose a phase first.");
 
-  // Map difficulty string to integer (matches your DB)
-  const difficultyMap = {
-    easy: 1,
-    medium: 2,
-    hard: 3,
-    mixed: 4
-  };
+  try {
+    const fd = new FormData();
+    fd.append("file", excelFile);
 
-  const phaseData = {
-    job_id: jobId,
-    time_limit: Number(currentPhase.interviewTime) || 30,
-    num_questions: Number(currentPhase.numberOfQuestions) || 5,
-    severity: difficultyMap[currentPhase.difficultyLevel || "easy"], // <-- mapped to integer
-    end_date: currentPhase.closeDate || null,
-    method: "quiz",
-    ranked: false,
-    available: true,
-    link: null
-  };
+    const res = await API.post(
+      `/questions/upload-excel/${currentPhase.id}`,
+      fd
+    );
 
-  console.log("DEBUG: Sending phaseData:", phaseData);
+    const createdQuestions = res.data.questions.map(q => ({
+      id: q.id,
+      text: q.ques_text,
+      answer: q.correct_answer,
+      isEditing: false,
+      isEditingAnswer: false,
+      isCustom: true
+    }));
 
-  API.post("/phase", phaseData)
-    .then(res => {
-      const phase = res.data.phase;
+    setPhases(prev =>
+      prev.map(p =>
+        p.id === currentPhase.id
+          ? { ...p, generatedQuestions: [...p.generatedQuestions, ...createdQuestions] }
+          : p
+      )
+    );
 
-      const newPhase = {
-        ...phase,
-        generatedQuestions: [],
-        isEditingName: false,
-        interviewTime: phase.time_limit,
-        numberOfQuestions: phase.num_questions,
-        difficultyLevel: currentPhase.difficultyLevel || "easy", // keep string for frontend
-        closeDate: phase.end_date,
-        jobDescription: job?.job_desc || ""
-      };
-
-      setPhases(prev => [...prev, newPhase]);
-      setActivePhase(newPhase.id);
-
-      console.log("Phase created successfully:", newPhase);
-    })
-    .catch(err => {
-      console.error("Error creating phase:", err.response?.data || err);
-    });
+    setExcelFile(null);
+    alert(`Uploaded ${res.data.createdCount} questions ✅`);
+  } catch (err) {
+    console.error("❌ Upload failed:", err);
+    alert(err.response?.data?.error || err.message || "Upload failed");
+  }
 };
+
+  const createPhase = () => {
+    const currentPhase = phases.find(p => p.id === activePhase) || {};
+
+    // Map difficulty string to integer (matches your DB)
+    const difficultyMap = {
+      easy: 1,
+      medium: 2,
+      hard: 3,
+      mixed: 4
+    };
+
+    const phaseData = {
+      job_id: jobId,
+      time_limit: Number(currentPhase.interviewTime) || 30,
+      num_questions: Number(currentPhase.numberOfQuestions) || 5,
+      severity: difficultyMap[currentPhase.difficultyLevel || "easy"], // <-- mapped to integer
+      end_date: currentPhase.closeDate || null,
+      method: "quiz",
+      ranked: false,
+      available: true,
+      link: null
+    };
+
+    console.log("DEBUG: Sending phaseData:", phaseData);
+
+    API.post("/phase", phaseData)
+      .then(res => {
+        const phase = res.data.phase;
+
+        const newPhase = {
+          ...phase,
+          generatedQuestions: [],
+          isEditingName: false,
+          interviewTime: phase.time_limit,
+          numberOfQuestions: phase.num_questions,
+          difficultyLevel: currentPhase.difficultyLevel || "easy", // keep string for frontend
+          closeDate: phase.end_date,
+          jobDescription: job?.job_desc || ""
+        };
+
+        setPhases(prev => [...prev, newPhase]);
+        setActivePhase(newPhase.id);
+
+        console.log("Phase created successfully:", newPhase);
+      })
+      .catch(err => {
+        console.error("Error creating phase:", err.response?.data || err);
+      });
+  };
 
 
 
@@ -143,28 +185,28 @@ const createPhase = () => {
 
 
 
- const deletePhase = async (phaseId) => {
-  try {
-    // Call backend force delete
-    await API.delete(`/phase/force/${phaseId}`);
+  const deletePhase = async (phaseId) => {
+    try {
+      // Call backend force delete
+      await API.delete(`/phase/force/${phaseId}`);
 
-    // Remove from frontend
-    const updatedPhases = phases.filter(phase => phase.id !== phaseId);
-    setPhases(updatedPhases);
+      // Remove from frontend
+      const updatedPhases = phases.filter(phase => phase.id !== phaseId);
+      setPhases(updatedPhases);
 
-    if (activePhase === phaseId && updatedPhases.length > 0) {
-      setActivePhase(updatedPhases[0].id);
-    } else if (updatedPhases.length === 0) {
-      setActivePhase(null);
+      if (activePhase === phaseId && updatedPhases.length > 0) {
+        setActivePhase(updatedPhases[0].id);
+      } else if (updatedPhases.length === 0) {
+        setActivePhase(null);
+      }
+
+      console.log("Phase deleted successfully (backend + frontend)");
+
+    } catch (err) {
+      console.error("Error deleting phase:", err);
+      alert("Cannot delete phase. It may have questions or server error.");
     }
-
-    console.log("Phase deleted successfully (backend + frontend)");
-
-  } catch (err) {
-    console.error("Error deleting phase:", err);
-    alert("Cannot delete phase. It may have questions or server error.");
-  }
-};
+  };
 
 
   // Edit answer
@@ -182,42 +224,42 @@ const createPhase = () => {
     }));
   };
 
-const toggleAnswerEdit = async (phaseId, questionId) => {
+  const toggleAnswerEdit = async (phaseId, questionId) => {
 
-  const phase = phases.find(p => p.id === phaseId);
-  const question = phase.generatedQuestions.find(q => q.id === questionId);
+    const phase = phases.find(p => p.id === phaseId);
+    const question = phase.generatedQuestions.find(q => q.id === questionId);
 
-  if (question.isEditingAnswer) {
+    if (question.isEditingAnswer) {
 
-    try {
+      try {
 
-      console.log("DEBUG: Updating answer:", questionId);
+        console.log("DEBUG: Updating answer:", questionId);
 
-      await API.put(`/questions/${questionId}`, {
-        correct_answer: question.answer
-      });
+        await API.put(`/questions/${questionId}`, {
+          correct_answer: question.answer
+        });
 
-      console.log("DEBUG: Answer updated in backend");
+        console.log("DEBUG: Answer updated in backend");
 
-    } catch (err) {
-      console.error("ERROR updating answer:", err);
+      } catch (err) {
+        console.error("ERROR updating answer:", err);
+      }
     }
-  }
 
-  setPhases(phases.map(phase => {
-    if (phase.id === phaseId) {
-      return {
-        ...phase,
-        generatedQuestions: phase.generatedQuestions.map(q =>
-          q.id === questionId
-            ? { ...q, isEditingAnswer: !q.isEditingAnswer }
-            : { ...q, isEditingAnswer: false }
-        )
-      };
-    }
-    return phase;
-  }));
-};
+    setPhases(phases.map(phase => {
+      if (phase.id === phaseId) {
+        return {
+          ...phase,
+          generatedQuestions: phase.generatedQuestions.map(q =>
+            q.id === questionId
+              ? { ...q, isEditingAnswer: !q.isEditingAnswer }
+              : { ...q, isEditingAnswer: false }
+          )
+        };
+      }
+      return phase;
+    }));
+  };
 
   // Save phase (mock function - would connect to backend)
   const savePhase = (phaseId) => {
@@ -243,85 +285,85 @@ const toggleAnswerEdit = async (phaseId, questionId) => {
     }));
   };
 
-const deleteQuestion = async (phaseId, questionId) => {
-  try {
-    console.log("DEBUG: Deleting question:", questionId);
+  const deleteQuestion = async (phaseId, questionId) => {
+    try {
+      console.log("DEBUG: Deleting question:", questionId);
 
-    await API.delete(`/questions/${questionId}`);
+      await API.delete(`/questions/${questionId}`);
 
-    let updatedPhases = phases.map(phase => {
+      let updatedPhases = phases.map(phase => {
+        if (phase.id === phaseId) {
+          return {
+            ...phase,
+            generatedQuestions: phase.generatedQuestions.filter(q => q.id !== questionId)
+          };
+        }
+        return phase;
+      });
+
+      // Check if phase is empty -> delete phase automatically
+      const phase = updatedPhases.find(p => p.id === phaseId);
+      if (phase.generatedQuestions.length === 0) {
+        try {
+          await API.delete(`/phase/force/${phaseId}`); // delete phase in backend
+          updatedPhases = updatedPhases.filter(p => p.id !== phaseId); // remove from frontend
+          if (activePhase === phaseId && updatedPhases.length > 0) {
+            setActivePhase(updatedPhases[0].id);
+          } else if (updatedPhases.length === 0) {
+            setActivePhase(null);
+          }
+          console.log("Phase automatically deleted as it has no questions");
+        } catch (err) {
+          console.error("Error auto-deleting empty phase:", err);
+        }
+      }
+
+      setPhases(updatedPhases);
+      console.log("Question deleted successfully (backend + frontend)");
+
+    } catch (err) {
+      console.error("ERROR deleting question:", err);
+    }
+  };
+
+
+
+  const toggleQuestionEdit = async (phaseId, questionId) => {
+
+    const phase = phases.find(p => p.id === phaseId);
+    const question = phase.generatedQuestions.find(q => q.id === questionId);
+
+    // if saving mode
+    if (question.isEditing) {
+
+      try {
+        console.log("DEBUG: Updating question:", questionId);
+
+        await API.put(`/questions/${questionId}`, {
+          ques_text: question.text
+        });
+
+        console.log("DEBUG: Question updated in backend");
+
+      } catch (err) {
+        console.error("ERROR updating question:", err);
+      }
+    }
+
+    setPhases(phases.map(phase => {
       if (phase.id === phaseId) {
         return {
           ...phase,
-          generatedQuestions: phase.generatedQuestions.filter(q => q.id !== questionId)
+          generatedQuestions: phase.generatedQuestions.map(q =>
+            q.id === questionId
+              ? { ...q, isEditing: !q.isEditing }
+              : { ...q, isEditing: false }
+          )
         };
       }
       return phase;
-    });
-
-    // Check if phase is empty -> delete phase automatically
-    const phase = updatedPhases.find(p => p.id === phaseId);
-    if (phase.generatedQuestions.length === 0) {
-      try {
-        await API.delete(`/phase/force/${phaseId}`); // delete phase in backend
-        updatedPhases = updatedPhases.filter(p => p.id !== phaseId); // remove from frontend
-        if (activePhase === phaseId && updatedPhases.length > 0) {
-          setActivePhase(updatedPhases[0].id);
-        } else if (updatedPhases.length === 0) {
-          setActivePhase(null);
-        }
-        console.log("Phase automatically deleted as it has no questions");
-      } catch (err) {
-        console.error("Error auto-deleting empty phase:", err);
-      }
-    }
-
-    setPhases(updatedPhases);
-    console.log("Question deleted successfully (backend + frontend)");
-
-  } catch (err) {
-    console.error("ERROR deleting question:", err);
-  }
-};
-
-
-
-const toggleQuestionEdit = async (phaseId, questionId) => {
-
-  const phase = phases.find(p => p.id === phaseId);
-  const question = phase.generatedQuestions.find(q => q.id === questionId);
-
-  // if saving mode
-  if (question.isEditing) {
-
-    try {
-      console.log("DEBUG: Updating question:", questionId);
-
-      await API.put(`/questions/${questionId}`, {
-        ques_text: question.text
-      });
-
-      console.log("DEBUG: Question updated in backend");
-
-    } catch (err) {
-      console.error("ERROR updating question:", err);
-    }
-  }
-
-  setPhases(phases.map(phase => {
-    if (phase.id === phaseId) {
-      return {
-        ...phase,
-        generatedQuestions: phase.generatedQuestions.map(q =>
-          q.id === questionId
-            ? { ...q, isEditing: !q.isEditing }
-            : { ...q, isEditing: false }
-        )
-      };
-    }
-    return phase;
-  }));
-};
+    }));
+  };
 
 
   // const addCustomQuestion = (phaseId) => {
@@ -371,76 +413,76 @@ const toggleQuestionEdit = async (phaseId, questionId) => {
   };
 
   // Add all custom Q&A to the phase
-const addAllCustomQuestions = async (phaseId) => {
-  try {
-    const phase = phases.find(p => p.id === phaseId);
-    if (!phase) return;
+  const addAllCustomQuestions = async (phaseId) => {
+    try {
+      const phase = phases.find(p => p.id === phaseId);
+      if (!phase) return;
 
-    const validQuestions = customQuestions.filter(q => q.question.trim() !== "");
+      const validQuestions = customQuestions.filter(q => q.question.trim() !== "");
 
-    if (validQuestions.length === 0) return;
+      if (validQuestions.length === 0) return;
 
-    const createdQuestions = [];
+      const createdQuestions = [];
 
-    for (const q of validQuestions) {
-      console.log("DEBUG: Creating question:", q);
+      for (const q of validQuestions) {
+        console.log("DEBUG: Creating question:", q);
 
-      const res = await API.post("/questions", {
-        phase_id: phaseId,
-        ques_text: q.question,
-        correct_answer: q.answer
-      });
+        const res = await API.post("/questions", {
+          phase_id: phaseId,
+          ques_text: q.question,
+          correct_answer: q.answer
+        });
 
-      createdQuestions.push({
-        id: res.data.question.id,
-        text: res.data.question.ques_text,
-        answer: res.data.question.correct_answer,
-        isEditing: false,
-        isEditingAnswer: false,
-        isCustom: true
-      });
-    }
+        createdQuestions.push({
+          id: res.data.question.id,
+          text: res.data.question.ques_text,
+          answer: res.data.question.correct_answer,
+          isEditing: false,
+          isEditingAnswer: false,
+          isCustom: true
+        });
+      }
 
 
-       // **Update phase info in backend**
-    const difficultyMap = {
-      easy: 1,
-      medium: 2,
-      hard: 3,
-      mixed: 4
-    };
-
-    const updatedPhaseData = {
-      num_questions: phase.numberOfQuestions,
-      time_limit: phase.interviewTime,
-      severity: difficultyMap[phase.difficultyLevel || "easy"],
-      end_date: phase.closeDate
-    };
-
-    await API.put(`/phase/${phaseId}`, updatedPhaseData);
-    console.log("DEBUG: Phase updated in backend", updatedPhaseData);
-
-   setPhases(prevPhases =>
-  prevPhases.map(p => {
-    if (p.id === phaseId) {
-      return {
-        ...p,
-        generatedQuestions: [...p.generatedQuestions, ...createdQuestions]
+      // **Update phase info in backend**
+      const difficultyMap = {
+        easy: 1,
+        medium: 2,
+        hard: 3,
+        mixed: 4
       };
+
+      const updatedPhaseData = {
+        num_questions: phase.numberOfQuestions,
+        time_limit: phase.interviewTime,
+        severity: difficultyMap[phase.difficultyLevel || "easy"],
+        end_date: phase.closeDate
+      };
+
+      await API.put(`/phase/${phaseId}`, updatedPhaseData);
+      console.log("DEBUG: Phase updated in backend", updatedPhaseData);
+
+      setPhases(prevPhases =>
+        prevPhases.map(p => {
+          if (p.id === phaseId) {
+            return {
+              ...p,
+              generatedQuestions: [...p.generatedQuestions, ...createdQuestions]
+            };
+          }
+          return p;
+        })
+      );
+
+
+      setCustomQuestions([{ question: "", answer: "" }]);
+
+      console.log("DEBUG: Questions saved to backend");
+
+    } catch (err) {
+      console.error("ERROR creating question:", err);
     }
-    return p;
-  })
-);
-
-
-    setCustomQuestions([{ question: "", answer: "" }]);
-
-    console.log("DEBUG: Questions saved to backend");
-
-  } catch (err) {
-    console.error("ERROR creating question:", err);
-  }
-};
+  };
 
 
 
@@ -475,7 +517,7 @@ const addAllCustomQuestions = async (phaseId) => {
             </div>
             <p className="subtitle">Prepare and manage interview questions for each phase</p>
           </div>
-          <button className="create-phase-btn" onClick={createPhase}>
+          <button type="button" className="create-phase-btn" onClick={createPhase}>
             <FiPlus size={20} />
             <span>Create New Phase</span>
           </button>
@@ -605,7 +647,26 @@ const addAllCustomQuestions = async (phaseId) => {
                   <FiPlus size={18} style={{ marginRight: '6px' }} /> Add Question
                 </button>
 
-                
+                <input
+  type="file"
+  accept=".xlsx,.xls"
+  onChange={(e) => {
+    const f = e.target.files?.[0];
+    console.log("✅ selected file:", f);
+    alert(f ? `✅ Selected: ${f.name}` : "❌ No file selected");
+    setExcelFile(f || null);
+  }}
+style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }}/>
+
+                <button
+  type="button"
+  className="generate-btn"
+  onClick={(e) => uploadExcelQuestions(e)}
+style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }}>
+  Upload Questions From Excel
+</button>
+
+
               </div>
 
 
@@ -668,7 +729,7 @@ const addAllCustomQuestions = async (phaseId) => {
                 <button
                   className="generate-btn"
                   onClick={() => addAllCustomQuestions(currentPhase.id)}
-  disabled={customQuestions.every(q => q.question.trim() === "")} // <-- enable only if there's a question
+                  disabled={customQuestions.every(q => q.question.trim() === "")} // <-- enable only if there's a question
                 >
                   <FiPlus size={18} style={{ marginRight: '8px' }} />
                   Generate Quiz

@@ -1,4 +1,65 @@
 const pool = require("../config/db");
+const multer = require("multer");
+const xlsx = require("xlsx");
+
+
+const upload = multer({ storage: multer.memoryStorage() });
+
+exports.uploadQuestionsExcel = [
+  upload.single("file"),
+  async (req, res) => {
+    try {
+      const { phaseId } = req.params;
+
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      // read excel
+      const workbook = xlsx.read(req.file.buffer, { type: "buffer" });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      const rows = xlsx.utils.sheet_to_json(sheet);
+
+      // validate
+      const validRows = rows
+        .map(r => ({
+          ques_text: (r.ques_text || "").toString().trim(),
+          correct_answer: (r.correct_answer || "").toString().trim()
+        }))
+        .filter(r => r.ques_text.length > 0);
+
+      if (validRows.length === 0) {
+        return res.status(400).json({ error: "Excel has no valid rows" });
+      }
+
+      // insert into DB
+      const created = [];
+
+      for (const r of validRows) {
+        const result = await pool.query(
+          `INSERT INTO questions_items (phase_id, ques_text, correct_answer)
+           VALUES ($1, $2, $3)
+           RETURNING *`,
+          [phaseId, r.ques_text, r.correct_answer]
+        );
+
+        created.push(result.rows[0]);
+      }
+
+      return res.status(201).json({
+        message: "Questions uploaded successfully",
+        createdCount: created.length,
+        questions: created
+      });
+
+    } catch (err) {
+      console.error(err);
+      return res.status(500).json({ error: err.message });
+    }
+  }
+];
 
 // Create Question Item
 exports.createQuestion = async (req, res) => {

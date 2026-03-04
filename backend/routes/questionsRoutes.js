@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const { createQuestion, getQuestions, getQuestionsByPhase ,getQuestionsByJob ,updateQuestion,
-  deleteQuestion} = require("../controllers/questionsController");
+  deleteQuestion,uploadQuestionsExcel} = require("../controllers/questionsController");
 
 // Create a new question
 router.post("/", createQuestion);
@@ -19,6 +19,8 @@ router.put("/:questionId", updateQuestion);
 
 // ✅ DELETE question
 router.delete("/:questionId", deleteQuestion);
+
+router.post("/upload-excel/:phaseId", uploadQuestionsExcel);
 
 
 module.exports = router;
