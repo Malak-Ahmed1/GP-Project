@@ -48,8 +48,8 @@ def ai_worker():
     last_screenshot_time = 0
     ABSENCE_LIMIT = 3  # seconds before "left exam" screenshot triggers
     while True:
-        frame = ai_memory["frame_to_analyze"]
-        if frame is None:
+        frame = ai_memory.get("frame_to_analyze")
+        if frame is None or frame.size == 0:
             time.sleep(0.01)
             continue
 
@@ -59,7 +59,7 @@ def ai_worker():
         # 1. RUN YOLO (Objects)
         # 1. RUN YOLO (Objects)
         objects, device_seen = detector.analyze(small_frame)
-        print(f"[YOLO] device_seen={device_seen}, objects={len(objects)}")
+        #print(f"[YOLO] device_seen={device_seen}, objects={len(objects)}")
 
         # 1b. HEAD POSE CHECK
         
@@ -150,12 +150,12 @@ def ai_worker():
             # --- REAL VIOLATION SCREENSHOT (with cooldown) ---
             SCREENSHOT_REASONS = {"UNKNOWN_PERSON", "MULTIPLE_PEOPLE", "SPOOF"}
             if unauthorized and reason in SCREENSHOT_REASONS:
-                if now - last_screenshot_time > 10:   # max 1 screenshot per 10 seconds
+                if frame is not None and frame.size > 0 and now - last_screenshot_time > 10:  # max 1 screenshot per 10 seconds
                     last_screenshot_time = now
                     screenshot_dir = os.path.join(BASE_DIR, "screenshots")
                     os.makedirs(screenshot_dir, exist_ok=True)
                     timestamp = time.strftime("%Y%m%d-%H%M%S")
-                    report_cheating(PHASE_CANDIDATE_ID, reason, f"Identity violation: {reason}", ai_memory["frame_to_analyze"])
+                    report_cheating(PHASE_CANDIDATE_ID, reason, f"Identity violation: {reason}", frame)
 
 
 # ==========================================

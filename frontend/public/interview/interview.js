@@ -147,16 +147,18 @@ function captureScreenSnapshot() {
 }
 
 function captureWebcamSnapshot(videoEl) {
+  if (!videoEl) return Promise.resolve(null); // always return a Promise
+  const width = videoEl.videoWidth || 640;
+  const height = videoEl.videoHeight || 480;
+
   const canvas = document.createElement("canvas");
-  canvas.width = videoEl.videoWidth || 640;
-  canvas.height = videoEl.videoHeight || 480;
-
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
-  ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(videoEl, 0, 0, width, height);
 
-  // Convert canvas -> Blob (image/png)
   return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), "image/png");
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
   });
 }
 
@@ -378,26 +380,41 @@ if (qIndex >= questions.length - 1) {
 }
 };
 
-document.addEventListener("visibilitychange", async () => 
-  {
-if (!isMonitoring || interviewEnded) return;
+document.addEventListener("visibilitychange", async () => {
+  if (interviewEnded) return;
   if (document.hidden) {
     currentCheatingCount++;
+    try {
+      let evidenceBlob = null;
 
-    // 1) Capture webcam snapshot
-    
-    //const evidenceBlob = await captureScreenSnapshot();
-    const evidenceBlob = await captureWebcamSnapshot(preview);
-    // 2) Send cheating event to backend
-    await sendCheatingEvent({
-      phase_candidate_id: pcId,
-      cheating_type: "TAB_SWITCH",
-      description: `Candidate switched tab during recording (count=${currentCheatingCount})`,
-      evidenceBlob
-    });
+      // 1️⃣ Use screen capture if available
+      if (screenVideoEl) {
+        evidenceBlob = await captureScreenSnapshot();
+      }
 
-    // Optional: show message to candidate
-    alert("Warning: Tab switching is not allowed. This action is recorded.");
+      // 2️⃣ Fallback to webcam if screen capture not available
+      if (!evidenceBlob && preview) {
+        if (preview.paused) await preview.play().catch(() => {});
+        evidenceBlob = await captureWebcamSnapshot(preview);
+      }
+
+      if (!evidenceBlob) {
+        console.warn("⚠️ No frame captured for tab switch!");
+        return;
+      }
+
+      await sendCheatingEvent({
+        phase_candidate_id: pcId,
+        cheating_type: "TAB_SWITCH",
+        description: `Candidate switched tab (count=${currentCheatingCount})`,
+        evidenceBlob
+      });
+
+      alert("Warning: Tab switching is not allowed. This action is recorded.");
+
+    } catch (err) {
+      console.error("Tab switch capture failed:", err);
+    }
   }
 });
 
