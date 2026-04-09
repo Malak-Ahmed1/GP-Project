@@ -49,7 +49,7 @@ os.environ["IMAGEIO_FFMPEG_EXE"] = r"C:\Users\yasmi\Downloads\ffmpeg-8.0\ffmpeg-
 
 
 
-sim_model = SentenceTransformer("sentence-transformers/all-MiniLM-L12-v2")
+sim_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
 ce_model = CrossEncoder("cross-encoder/stsb-roberta-large")
 
 

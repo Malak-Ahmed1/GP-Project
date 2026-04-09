@@ -228,15 +228,17 @@ startBtn.onclick = async () => {
   status.textContent = 'Requesting screen share...';
 
   try {
-    // Start screen capture
-    await startScreenCapture();
+    // ✅ Reuse existing screen stream if already granted
     if (!screenStream) {
-      alert("Screen sharing is required. Refresh and allow Entire Screen.");
-      startBtn.disabled = false;
-      return;
+      await startScreenCapture();
+      if (!screenStream) {
+        alert("Screen sharing is required. Refresh and allow Entire Screen.");
+        startBtn.disabled = false;
+        return;
+      }
     }
 
-    // Start recording camera + mic (camera is already running)
+    // Start recording camera + mic
     recordedChunks = [];
     mediaRecorder = new MediaRecorder(localStream, { mimeType: 'video/webm;codecs=vp8,opus' });
     mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
@@ -255,13 +257,14 @@ startBtn.onclick = async () => {
 };
 
 // Stop recording & upload
-stopBtn.onclick = () => {
+stopBtn.onclick = () => 
+  {
   if (!mediaRecorder) return;
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
   stopBtn.disabled = true;
   startBtn.disabled = false;
   isRecording = false;
-  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  //if (localStream) localStream.getTracks().forEach(t => t.stop());
  
   status.textContent = 'Stopped. Uploading...';
 
