@@ -39,44 +39,47 @@ def score(candidate, ideal):
     print(f"  BGE={round(bi,2)} | Contra={round(contra,2)} | Entail={round(entail,2)} | FINAL={round(similarity*100)}%")
 
 tests = [
-    ("Object-Oriented Programming is a programming style that uses objects and classes to organize code.",
-     "OOP stands for Object-Oriented Programming, a paradigm based on objects and classes.",
+    # ✅ CORRECT
+    ("A variable stores a value in memory that can be used later in the program.",
+     "A variable is a named storage location in memory that holds a value.",
      "Q1  ✅ CORRECT  - expect 75-95%"),
 
-    ("Inheritance lets a child class get the attributes and behaviors of a parent class.",
-     "Inheritance allows a class to reuse properties and methods from another class.",
+    ("An API lets different software applications talk to each other and share data.",
+     "An API is a set of rules that allows programs to communicate with each other.",
      "Q2  ✅ CORRECT  - expect 75-95%"),
 
-    ("Python lists store multiple items in order and you can modify them.",
-     "A list in Python is an ordered collection of items that can be changed.",
+    ("A loop repeats a block of code multiple times until a condition is met.",
+     "A loop is a control structure that executes a block of code repeatedly based on a condition.",
      "Q3  ✅ CORRECT  - expect 75-95%"),
 
-    ("Polymorphism means objects can take many forms.",
-     "Polymorphism allows different classes to be treated as the same type through a common interface.",
-     "Q4  ⚠️ PARTIAL  - expect 40-65%"),
+    ("Git is a tool that tracks changes in code and helps teams collaborate.",
+     "Git is a distributed version control system used to track changes in source code.",
+     "Q4  ✅ CORRECT  - expect 75-95%"),
 
-    ("An index makes searching in a database faster.",
-     "A database index improves query speed by creating a fast lookup structure on a column.",
+    # ⚠️ PARTIAL
+    ("Encapsulation hides data inside a class.",
+     "Encapsulation is the principle of bundling data and methods together and restricting direct access to some components.",
      "Q5  ⚠️ PARTIAL  - expect 40-65%"),
 
-    ("OOP is a type of database used to store objects.",
-     "OOP stands for Object-Oriented Programming, a paradigm based on objects and classes.",
-     "Q6  ❌ WRONG    - expect 0-20%"),
+    ("An exception is an error that happens while the program runs.",
+     "An exception is an event that disrupts the normal flow of a program and must be handled to prevent crashes.",
+     "Q6  ⚠️ PARTIAL  - expect 40-65%"),
 
-    ("Inheritance is when you copy and paste code between files.",
-     "Inheritance allows a class to reuse properties and methods from another class.",
+    # ❌ WRONG
+    ("A variable is a type of loop used in Python.",
+     "A variable is a named storage location in memory that holds a value.",
      "Q7  ❌ WRONG    - expect 0-20%"),
 
-    ("Recursion is a loop that never ends.",
-     "Recursion is when a function calls itself directly or indirectly to solve a problem.",
+    ("An API is a database that stores user information.",
+     "An API is a set of rules that allows programs to communicate with each other.",
      "Q8  ❌ WRONG    - expect 0-20%"),
 
-    ("A list is a type of function in Python.",
-     "A list in Python is an ordered collection of items that can be changed.",
+    ("Git is a programming language used to build websites.",
+     "Git is a distributed version control system used to track changes in source code.",
      "Q9  ❌ WRONG    - expect 0-20%"),
 
-    ("An index is the primary key of a table.",
-     "A database index improves query speed by creating a fast lookup structure on a column.",
+    ("Encapsulation is when a function calls itself recursively.",
+     "Encapsulation is the principle of bundling data and methods together and restricting direct access to some components.",
      "Q10 ❌ WRONG    - expect 0-20%"),
 ]
 
