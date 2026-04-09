@@ -11,35 +11,39 @@ def semantic_similarity(text_a, text_b):
     b = sim_model.encode(prefix + text_b, convert_to_tensor=True, normalize_embeddings=True)
     return max(0.0, min(1.0, util.pytorch_cos_sim(a, b).item()))
 
-def get_contradiction(transcript, ideal):
-    logits = ce_model.predict([(ideal, transcript)])[0]
+def get_nli(text_a, text_b):
+    logits = ce_model.predict([(text_a, text_b)])[0]
     probs = np.exp(logits) / np.sum(np.exp(logits))
-    return float(probs[0]), float(probs[2])
+    return float(probs[0]), float(probs[2])  # contradiction, entailment
+
+import requests, re
 
 def score(candidate, ideal):
-    bi = semantic_similarity(candidate, ideal)
-    contra, entail = get_contradiction(candidate, ideal)
+    prompt = f"""You are a strict answer grader.
 
-    if contra > 0.7:
-        similarity = bi * 0.1        # clearly wrong
-    elif contra > 0.4:
-        similarity = bi * 0.3        # probably wrong
-    elif contra > 0.2:
-        similarity = bi * 0.6        # uncertain
-    else:
-        similarity = bi              # correct — trust BGE fully
+Ideal answer: {ideal}
+Candidate answer: {candidate}
 
-    word_count = len(candidate.split())
-    if word_count < 3:
-        similarity *= 0.4
-    elif word_count < 8:
-        similarity *= 0.75
+Score the candidate from 0 to 100 based on correctness of meaning.
+- 80-100: correct meaning, even if different words
+- 40-65: partially correct, missing key concepts  
+- 0-20: wrong or unrelated
 
-    similarity = round(max(0.0, min(1.0, similarity)), 2)
-    print(f"  BGE={round(bi,2)} | Contra={round(contra,2)} | Entail={round(entail,2)} | FINAL={round(similarity*100)}%")
+Reply with ONLY a single integer number, nothing else."""
+
+    try:
+        r = requests.post("http://localhost:11434/api/generate",
+            json={"model": "llama3", "prompt": prompt, "stream": False},
+            timeout=120)
+        text = r.json()["response"].strip()
+        nums = re.findall(r'\d+', text)
+        val = int(nums[0]) if nums else 50
+        val = min(100, max(0, val))
+        print(f"  LLM response: '{text}' → FINAL={val}%")
+    except Exception as e:
+        print(f"  ERROR: {e}")
 
 tests = [
-    # ✅ CORRECT
     ("A variable stores a value in memory that can be used later in the program.",
      "A variable is a named storage location in memory that holds a value.",
      "Q1  ✅ CORRECT  - expect 75-95%"),
@@ -56,7 +60,6 @@ tests = [
      "Git is a distributed version control system used to track changes in source code.",
      "Q4  ✅ CORRECT  - expect 75-95%"),
 
-    # ⚠️ PARTIAL
     ("Encapsulation hides data inside a class.",
      "Encapsulation is the principle of bundling data and methods together and restricting direct access to some components.",
      "Q5  ⚠️ PARTIAL  - expect 40-65%"),
@@ -65,7 +68,6 @@ tests = [
      "An exception is an event that disrupts the normal flow of a program and must be handled to prevent crashes.",
      "Q6  ⚠️ PARTIAL  - expect 40-65%"),
 
-    # ❌ WRONG
     ("A variable is a type of loop used in Python.",
      "A variable is a named storage location in memory that holds a value.",
      "Q7  ❌ WRONG    - expect 0-20%"),
