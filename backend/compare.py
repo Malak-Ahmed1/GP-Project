@@ -49,8 +49,8 @@ os.environ["IMAGEIO_FFMPEG_EXE"] = r"C:\Users\yasmi\Downloads\ffmpeg-8.0\ffmpeg-
 
 
 
-sim_model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-ce_model = CrossEncoder("cross-encoder/stsb-roberta-large")
+sim_model = SentenceTransformer("BAAI/bge-large-en-v1.5")
+ce_model = CrossEncoder("cross-encoder/nli-deberta-v3-large")
 
 
 def clean_asr(text: str) -> str:
@@ -69,11 +69,11 @@ def normalize_text(text):
     return text
 
 def semantic_similarity(text_a, text_b, model):
-    a = model.encode(text_a, convert_to_tensor=True, normalize_embeddings=True)
-    b = model.encode(text_b, convert_to_tensor=True, normalize_embeddings=True)
-
-    cos = util.pytorch_cos_sim(a, b).item()   # cosine in [-1, 1]
-    score = max(0.0, min(1.0, cos))           # clamp to [0, 1], don't remap!
+    prefix = "Represent this sentence for searching relevant passages: "
+    a = model.encode(prefix + text_a, convert_to_tensor=True, normalize_embeddings=True)
+    b = model.encode(prefix + text_b, convert_to_tensor=True, normalize_embeddings=True)
+    cos = util.pytorch_cos_sim(a, b).item()
+    score = max(0.0, min(1.0, cos))
     print(f"Semantic : {round(score, 2)}")
     return score
 
@@ -178,23 +178,36 @@ try:
     # similarity = round(max(0.0, (0.7 * ce_score) + (0.3 * bi_score)), 2)
 # If NLI is low, trust NLI more (prevents false high scores from topic overlap)
 # Cross-encoder similarity (direct STS score)
-    ce_score = float(ce_model.predict([(ideal_answer, polished_transcript)])[0])
-    # stsb-roberta-large is usually ~0..1, but clamp safely
-    ce_score = max(0.0, min(1.0, ce_score))
-    print(f"CrossEncoder : {round(ce_score, 2)}")
-        
-    base = (0.90 * ce_score) + (0.10 * bi_score)
+# BGE is the main scorer — it handles paraphrases correctly
+# NLI only used to detect clearly WRONG answers (contradiction > entailment)
+    def get_contradiction(transcript, ideal, model):
+        logits = model.predict([(ideal, transcript)])[0]
+        probs = np.exp(logits) / np.sum(np.exp(logits))
+        contradiction = float(probs[0])
+        entailment    = float(probs[2])
+        print(f"Entailment: {round(entailment,2)} | Contradiction: {round(contradiction,2)}")
+        return contradiction, entailment
 
-    # Stronger completeness penalty (still general)
-    len_ratio = len(polished_transcript.split()) / max(1, len(ideal_answer.split()))
-    len_ratio = max(0.0, min(1.0, len_ratio))
+    contradiction, entailment = get_contradiction(polished_transcript, ideal_answer, ce_model)
+    print(f"BGE score : {round(bi_score, 2)}")
 
-    # Penalize short answers more
-    penalty = 0.35 + 0.65 * len_ratio   # 0.35..1.0
-    similarity = base * penalty
+    # Start with BGE as the base score
+    if contradiction > 0.7:
+        similarity = bi_score * 0.1      # clearly wrong
+    elif contradiction > 0.4:
+        similarity = bi_score * 0.3      # probably wrong
+    elif contradiction > 0.2:
+        similarity = bi_score * 0.6      # uncertain
+    else:
+        similarity = bi_score            # correct — trust BGE fully
+
+    word_count = len(polished_transcript.split())
+    if word_count < 3:
+        similarity *= 0.4
+    elif word_count < 8:
+        similarity *= 0.75
 
     similarity = round(max(0.0, min(1.0, similarity)), 2)
-    print(f"FINAL : {similarity}")
     print(f"FINAL : {similarity}")
 
     # Step 6: Return JSON
