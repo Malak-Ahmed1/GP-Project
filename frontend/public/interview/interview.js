@@ -26,7 +26,79 @@ let screenVideoEl = null;
 let isMonitoring = false; // NEW: start monitoring once screen share is granted
 let interviewEnded = false;
 
+let proctoringInterval = null;
+
+function startProctoring() {
+  if (proctoringInterval) return;
+
+  proctoringInterval = setInterval(async () => {
+    if (!isMonitoring || interviewEnded) return;
+    if (!preview || !preview.videoWidth) return;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = preview.videoWidth;
+    canvas.height = preview.videoHeight;
+    canvas.getContext("2d").drawImage(preview, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const fd = new FormData();
+      fd.append("frame", blob, "frame.jpg");
+      fd.append("phase_candidate_id", pcId);
+
+      try {
+        await fetch("http://127.0.0.1:5001/upload-frame", {
+          method: "POST",
+          body: fd
+        });
+      } catch (e) {
+        console.warn("Proctoring frame failed:", e.message);
+      }
+    }, "image/jpeg", 0.7);
+
+  }, 2000);
+}
+
+function stopProctoring() {
+  if (proctoringInterval) {
+    clearInterval(proctoringInterval);
+    proctoringInterval = null;
+  }
+}
+
 let mediaRecorder, recordedChunks = [], localStream;
+async function startCameraAlways() {
+  try {
+    // request camera + mic immediately
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+    // show camera preview
+    preview.srcObject = localStream;
+    preview.autoplay = true;
+    preview.muted = true;
+    preview.playsInline = true;
+
+    // Set camera size to half screen
+// Replace the preview styling in startCameraAlways() with this:
+    preview.style.position = "relative"; // inside parent container
+    preview.style.width = "100%";        // fill the frame
+    preview.style.height = "100%";       // fill the frame
+    preview.style.top = "0";
+    preview.style.left = "0";
+    preview.style.border = "2px solid black";
+    preview.style.borderRadius = "8px";
+    preview.style.objectFit = "cover";   // maintain camera aspect ratio
+    preview.style.zIndex = "1";          // behind questions/buttons if needed
+
+
+  } catch (err) {
+    console.error("Camera permission denied:", err);
+    alert("Camera + Mic permissions are required to start the interview.");
+  }
+}
+
+// Call it immediately to start camera on page load
+startCameraAlways();
 
 async function startScreenCapture() {
   // If StartInterviewPage already started it, reuse it
@@ -55,6 +127,7 @@ async function startScreenCapture() {
   screenVideoEl.playsInline = true;
   await screenVideoEl.play();
   isMonitoring = true;
+  startProctoring();
 }
 
 
@@ -150,24 +223,18 @@ startScreenCapture().catch(console.error);
 
 startBtn.onclick = async () => {
   startBtn.disabled = true;
-  status.textContent = 'Requesting permissions (screen, camera & mic)...';
+  status.textContent = 'Requesting screen share...';
 
   try {
-    // 1) SCREEN permission (NEW)
-    // You can show a message before it:
-    // alert("This interview requires Screen Share. Your screen may be captured if you leave the interview tab.");
+    // Start screen capture
+    await startScreenCapture();
+    if (!screenStream) {
+      alert("Screen sharing is required. Refresh and allow Entire Screen.");
+      startBtn.disabled = false;
+      return;
+    }
 
-    // await startScreenCapture();
-          if (!screenStream) {
-        alert("Screen sharing is required. Please refresh and allow Entire Screen.");
-        startBtn.disabled = false;
-        return;
-      }
-
-    // 2) CAMERA + MIC permission (your old code)
-    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    preview.srcObject = localStream;
-
+    // Start recording camera + mic (camera is already running)
     recordedChunks = [];
     mediaRecorder = new MediaRecorder(localStream, { mimeType: 'video/webm;codecs=vp8,opus' });
     mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
@@ -179,7 +246,7 @@ startBtn.onclick = async () => {
 
   } catch (err) {
     console.error(err);
-    alert('Permissions are required (screen + camera + mic).');
+    alert('Screen sharing permission required.');
     startBtn.disabled = false;
     status.textContent = '';
   }
@@ -263,6 +330,7 @@ function stopMonitoringAndStreams() {
   interviewEnded = true;   // ✅ important
   isMonitoring = false;
   isRecording = false;
+  stopProctoring();
 
   // stop camera stream if still running
   if (localStream) {
@@ -318,7 +386,8 @@ if (!isMonitoring || interviewEnded) return;
 
     // 1) Capture webcam snapshot
     
-    const evidenceBlob = await captureScreenSnapshot();
+    //const evidenceBlob = await captureScreenSnapshot();
+    const evidenceBlob = await captureWebcamSnapshot(preview);
     // 2) Send cheating event to backend
     await sendCheatingEvent({
       phase_candidate_id: pcId,

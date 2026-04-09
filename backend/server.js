@@ -59,6 +59,10 @@ app.use("/uploads-inline", express.static(path.join(process.cwd(), "uploads"), {
 }));
 app.use("/api/cheating-events", cheatingEventsRoutes);
 
+
+const proctoringRoutes = require("./routes/proctoringRoutes");
+app.use("/api", proctoringRoutes)
+
 const PORT = process.env.PORT || 5000;
 
 const server = app.listen(PORT, () => {
