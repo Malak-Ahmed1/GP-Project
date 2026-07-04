@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useToast } from "../contexts/ToastContext";
 import "../styles/CreateJobPage.css";
 
 function CreateJobPage() {
   const navigate = useNavigate();
+  const { showError, showSuccess } = useToast();
 
   const [jobTitle, setJobTitle] = useState("");
   const [closingDate, setClosingDate] = useState(""); // New: Optional closing date
@@ -50,12 +52,12 @@ function CreateJobPage() {
       console.log("Stored user:", storedUser);
       
       if (!storedUser) {
-        alert("Please login first");
+        showError("Please login first");
         return;
       }
 
       if (!jobTitle.trim()) {
-        alert("Please enter a job title");
+        showError("Please enter a job title");
         return;
       }
 
@@ -82,18 +84,17 @@ function CreateJobPage() {
       console.log("Response data:", data);
 
       if (!res.ok) {
-        alert(data.message || "Failed to create job");
+        showError(data.message || "Failed to create job");
         return;
       }
 
       console.log("Job created successfully:", data);
-      alert("Job created successfully!");
-      
+      showSuccess("Job created successfully!");      
       navigate("/dashboard");
 
     } catch (err) {
       console.error("Job creation error:", err);
-      alert("Network error. Please try again.");
+      showError("Network error. Please try again.");
     }
   };
 

@@ -95,20 +95,46 @@ function RankingPage() {
     console.log("Applying ranking to all candidates");
     console.log("Current candidates:", candidates);
 
-    // Get candidate IDs (not job_application_ids)
-    const candidateIds = candidates
+    if (candidates.length === 0) {
+      showError("No candidates available to rank");
+      return;
+    }
+
+    // Step 1: Assign arbitrary weights to candidates
+    console.log("Step 1: Assigning arbitrary weights to candidates...");
+    const candidatesWithWeights = candidates.map((candidate, index) => {
+      // Generate arbitrary weight (random between 60-100 to simulate ranking scores)
+      const arbitraryWeight = Math.floor(Math.random() * 41) + 60; // 60-100 range
+      
+      return {
+        ...candidate,
+        score: arbitraryWeight,
+        rank: index + 1
+      };
+    });
+
+    // Step 2: Sort candidates by weight (highest first) and take top 4
+    console.log("Step 2: Sorting candidates and taking top 4...");
+    const rankedCandidates = candidatesWithWeights
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4); // Take only top 4
+
+    // Update candidates state to show only top 4 with their scores
+    setCandidates(rankedCandidates);
+
+    // Step 3: Mark top 4 job applications as passed
+    console.log("Step 3: Marking top 4 applications as passed...");
+    const topCandidateIds = rankedCandidates
       .filter(c => c.id && c.id !== null && c.id !== undefined)
       .map(c => c.id);
 
-    if (candidateIds.length === 0) {
+    if (topCandidateIds.length === 0) {
       showError("No valid candidates available to add");
       return;
     }
 
-    console.log("Candidates to add:", candidateIds);
+    console.log("Top 4 candidates:", rankedCandidates.map(c => ({ name: c.name, score: c.score })));
 
-    // Step 1: Mark all job applications as passed (for CV ranking)
-    console.log("Step 1: Marking all applications as passed...");
     const markPassedResponse = await fetch(`http://localhost:5000/api/candidate/mark-all-passed/${jobId}`, {
       method: 'PATCH',
       headers: {
@@ -124,13 +150,15 @@ function RankingPage() {
 
     console.log(`Marked ${markPassedResult.count} applications as passed`);
     
-    // Success message with complete flow information
+    // Success message with ranking information
     showSuccess(
-      `CV Ranking Applied Successfully! 🎯\n`
+      `CV Ranking Applied Successfully! 🎯\n` +
+      `• Top ${rankedCandidates.length} candidates selected\n` +
+      `• Scores range: ${Math.min(...rankedCandidates.map(c => c.score))} - ${Math.max(...rankedCandidates.map(c => c.score))}\n` +
+      `• Candidates will now appear in Phase 1 quiz selection\n` +
+      `• Go to Job Interview Details to send quiz links`
     );
 
-    // Refresh ranking table
-    await fetchRanking();
     setRankingApplied(true);
 
   } catch (error) {

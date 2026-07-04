@@ -101,7 +101,7 @@ function Layout({ children }) {
                 </svg>
               </div>
               <div className="sidebar-title">
-                <h3>AI Hiring</h3>
+                <h3>ComfyHire</h3>
                 <span>HR Portal</span>
               </div>
             </div>

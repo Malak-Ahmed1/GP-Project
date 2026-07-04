@@ -13,6 +13,28 @@
   transition: color 0.3s ease;
 }
 
+/* Center the table container */
+.table-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.table-container table {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.table-container table th,
+.table-container table td {
+  text-align: center;
+  vertical-align: middle;
+}
+
 /* Toggle Switch Styles */
 .switch {
   position: relative;

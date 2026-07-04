@@ -119,7 +119,7 @@ function LoginPage() {
               <circle cx="42" cy="42" r="3" fill="#667eea" opacity="0.6" class="pulse-dot"/>
             </svg>
           </div>
-          <h1>AI Hiring Platform</h1>
+          <h1>ComfyHire</h1>
           <p>
             Hire smarter. Rank candidates instantly.  
             Let AI identify top talent in seconds.

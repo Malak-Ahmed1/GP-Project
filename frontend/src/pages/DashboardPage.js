@@ -20,8 +20,8 @@ function DashboardPage() {
   useEffect(() => {
     const hrUser = localStorage.getItem("hrUser");
     if (!hrUser) {
-      // If no user is logged in, redirect to login
-      navigate("/login");
+      // If no user is logged in, redirect to landing page
+      navigate("/");
     }
   }, [navigate]);
 

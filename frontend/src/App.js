@@ -13,6 +13,7 @@ import PrepareQuestions from "./pages/PrepareQuestions";
 import JobInterviewDetails from "./pages/JobInterviewDetails";
 import StartInterview from "./pages/StartInterviewPage";
 import CandidateDetails from "./pages/CandidateDetails";
+import LandingPage from "./pages/LandingPage";
 
 import Layout from "./components/Layout";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -28,7 +29,7 @@ function App() {
     <ToastProvider>
       <Router>
         <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/apply/:jobId" element={<ApplyPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
