@@ -27,6 +27,6 @@
     "passport-google-oauth20": "^2.0.0",
     "passport-linkedin-oauth2": "^2.0.0",
     "passport-microsoft": "^2.1.0",
-    "pg": "^8.18.0"
+    "pg": "^8.19.0"
   }
 }

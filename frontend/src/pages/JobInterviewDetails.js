@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Lock, Unlock, ChevronLeft, User, AlertTriangle, CheckCircle, Mail, Clock } from 'lucide-react';
-import API from '../services/api';
 import axios from 'axios';
 function JobInterviewDetails() {
   const { jobId } = useParams();
@@ -24,7 +23,6 @@ function JobInterviewDetails() {
   const [rankingOption, setRankingOption] = useState({});  // now per phase
 
   const [selectedCandidate, setSelectedCandidate] = useState(null);
-  const [sendingEmails, setSendingEmails] = useState(false);
 
 
 
@@ -34,69 +32,56 @@ function JobInterviewDetails() {
         setLoading(true);
 
         // 1️⃣ Get job info
-        const jobRes = await API.get(`/job/${jobId}`);
+        // const jobRes = await axios.get(`/api/job/${jobId}`);
+        const jobRes = await axios.get(`http://localhost:5000/api/job/${jobId}`);
 
         setJob(jobRes.data);
 
         // 2️⃣ Get all phases for this job
-        const phasesRes = await API.get(`/phase/job/${jobId}`);
+        // const phasesRes = await axios.get(`/api/phase/job/${jobId}`);
+        const phasesRes = await axios.get(`http://localhost:5000/api/phase/job/${jobId}`);
 
         const phasesData = phasesRes.data;
 
         const phasesWithCandidates = await Promise.all(
           phasesData.map(async (phase) => {
+            // const candidatesRes = await axios.get(`/api/phase-candidates/phase/${phase.id}`);
             let candidatesRes;
-            let candidates = [];
-            
             if (phase.quiz_sent) {
               // Fetch only candidates already assigned to this phase
-              candidatesRes = await API.get(`/phase-candidates/phase/${phase.id}`);
-              console.log('Phase candidates data:', candidatesRes.data);
-              
-              // Data structure from getPhaseCandidates: pc.*, c.name AS candidate_name, c.email AS candidate_email
-              candidates = candidatesRes.data.map(c => ({
-                id: c.candidate_id,  // From JOIN with candidate table
-                name: c.candidate_name || 'Unknown',
-                phase_candidate_id: c.id,  // This is the phase_candidates table id
-                email: c.candidate_email || '',
-                job_application_id: c.job_application_id,
-                score: Number(c.phase_score) || 0,
-                cgpa_phase_score: Number(c.cgpa_phase_score) || 0,
-                maxScore: 100,
-                cheatingFlags: c.cheating_flag ? [String(c.cheating_flag)] : [],
-                submittedAt: c.time_enter || null,
-                timeSpent: 'N/A',
-                answers: []
-              }));
+              candidatesRes = await axios.get(
+                `http://localhost:5000/api/phase-candidates/phase/${phase.id}`
+              );
             } else {
-              // Fetch all eligible candidates for this phase (not yet assigned)
-              candidatesRes = await API.get(`/quiz/select/${jobId}/${phase.phase_order}`);
-              console.log('Selectable candidates data:', candidatesRes.data);
-              
-              // Data structure from getCandidatesForPhaseSelection: ja.id AS job_application_id, c.id AS candidate_id, c.name, c.email
-              candidates = candidatesRes.data.map(c => ({
-                id: c.candidate_id,  // Direct candidate_id
-                name: c.name || 'Unknown',
-                phase_candidate_id: null,  // Not assigned yet, so no phase_candidate_id
-                email: c.email || '',
-                job_application_id: c.job_application_id,
-                score: 0,  // No score yet since not assigned
-                cgpa_phase_score: 0,  // No CGPA yet
-                maxScore: 100,
-                cheatingFlags: [],
-                submittedAt: null,
-                timeSpent: 'N/A',
-                answers: []
-              }));
+              // Fetch all eligible candidates for this phase
+              candidatesRes = await axios.get(
+                `http://localhost:5000/api/quiz/select/${jobId}/${phase.phase_order}`
+              );
             }
-            
-            console.log('Processed candidates for phase', phase.id, candidates);
-            
+            console.log('Candidates for phase', phase.id, candidatesRes.data);
+
+            const candidates = candidatesRes.data.map(c => ({
+              id: c.candidate_id || c.id,                // Replace id mapping
+              name: c.candidate_name || c.name || 'Unknown',
+              // VERY IMPORTANT FIX
+              phase_candidate_id:
+                c.phase_candidate_id ||
+                c.id,
+              email: c.candidate_email || c.email || '',
+              job_application_id: c.job_application_id,  // ADD this line
+              score: Number(c.phase_score) || 0,
+              cgpa_phase_score: Number(c.cgpa_phase_score) || 0,
+
+              maxScore: 100,
+              cheatingFlags: c.cheating_flag ? ["Cheating detected"] : [],
+              submittedAt: c.date || null,
+              timeSpent: 'N/A',
+              answers: []
+            }));
             return {
-              ...phase, 
-              candidates, 
-              quizSent: phase.quiz_sent || false,
+              ...phase, candidates, quizSent: phase.quiz_sent || false,
               acceptanceSent: phase.acceptance_sent || false
+
             };
           })
         );
@@ -128,8 +113,8 @@ function JobInterviewDetails() {
       console.log("Clicked candidate:", candidate);
       console.log("phase_candidate_id:", candidate.phase_candidate_id);
       // Use phase_candidate_id here (NOT candidate.id)
-      const res = await API.get(
-        `/candidate-answer/phase-candidate/${candidate.phase_candidate_id}`
+      const res = await axios.get(
+        `http://localhost:5000/api/candidate-answer/phase-candidate/${candidate.phase_candidate_id}`
       );
       console.log("API response:", res.data);
       const answers = res.data.map(a => ({
@@ -143,7 +128,11 @@ function JobInterviewDetails() {
         maxScore: 100
       }));
 
-      setSelectedCandidate({ ...candidate, answers });
+      const cheatingRes = await axios.get(
+        `http://localhost:5000/api/cheating-events/phase-candidate/${candidate.phase_candidate_id}`
+      );
+
+      setSelectedCandidate({ ...candidate, answers, cheatingEvents: cheatingRes.data });
     } catch (err) {
       console.error("Error fetching candidate answers:", err);
       alert("Failed to load candidate answers");
@@ -212,7 +201,6 @@ HR Team`);
     if (selectedCandidates.length === 0) return;
 
     try {
-      setSendingEmails(true);
       const currentPhase = phases.find(p => p.id === activePhase);
 
       if (!currentPhase) {
@@ -228,18 +216,11 @@ HR Team`);
         // Get jobApplicationIds from selected candidates
         const jobApplicationIds = selectedCandidates.map(id => {
           const candidate = currentPhase.candidates.find(c => c.id === id);
-          return candidate?.job_application_id; // Use optional chaining and return undefined if null
-        }).filter(id => id != null); // Filter out null/undefined values
+          return candidate.job_application_id; // <-- make sure you have this in your frontend
+        });
 
-        if (jobApplicationIds.length === 0) {
-          alert('No valid candidates selected. Candidates must have valid job applications.');
-          return;
-        }
-
-        console.log('Sending quiz to jobApplicationIds:', jobApplicationIds);
-
-        const response = await API.post(
-          "/quiz/assign-and-send",
+        const response = await axios.post(
+          "http://localhost:5000/api/quiz/assign-and-send",
           {
             phase_id: currentPhase.id,
             phaseOrder: currentPhase.phase_order,
@@ -282,10 +263,10 @@ HR Team`);
           };
         }).filter(e => e !== null);
 
-        await API.post('/send-acceptance', { emails });
+        await axios.post('http://localhost:5000/api/send-acceptance', { emails });
 
-        await API.post(
-          "/phase/mark-acceptance",
+        await axios.post(
+          "http://localhost:5000/api/phase/mark-acceptance",
           { phase_id: currentPhase.id }
         );
 
@@ -298,7 +279,7 @@ HR Team`);
         });
 
         // Mark them as passed
-        await API.post("/phase-candidates/mark-passed", {
+        await axios.post("http://localhost:5000/api/phase-candidates/mark-passed", {
           phase_id: currentPhase.id,
           candidate_ids: jobApplicationIds
         });
@@ -325,8 +306,6 @@ HR Team`);
     catch (err) {
       console.error(err);
       alert('Error sending emails: ' + (err.response?.data?.message || err.message));
-    } finally {
-      setSendingEmails(false);
     }
   };
 
@@ -467,6 +446,42 @@ HR Team`);
                 <ul>
                   {selectedCandidate.cheatingFlags.map((flag, idx) => (
                     <li key={idx}>{flag}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+          {selectedCandidate.cheatingEvents?.length > 0 && (
+            <div className="cheating-alert" style={{ marginTop: "12px" }}>
+              <AlertTriangle size={20} />
+              <div>
+                <strong>Cheating Events:</strong>
+                <ul>
+                  {selectedCandidate.cheatingEvents.map((e) => (
+                    <li key={e.id}>
+                      <b>{e.cheating_type}</b> — {e.description} <br />
+                      <small>{new Date(e.created_at).toLocaleString()}</small>
+                      {e.evidence && (
+                        <div>
+                          <div style={{ marginTop: "6px" }}>
+                            <img
+                              src={`http://localhost:5000${e.evidence}`}
+                              alt="evidence"
+                              style={{ width: "260px", borderRadius: "8px", border: "1px solid #ccc" }}
+                            />
+                            <div>
+<a
+  href={`http://localhost:5000${e.evidence}`}
+  target="_blank"
+  rel="noreferrer"
+>
+  Open full image
+</a>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -814,12 +829,8 @@ HR Team`);
                     <button className="secondary-btn" onClick={() => setModalStep(1)}>
                       Back
                     </button>
-                    <button 
-                      className="primary-btn-send" 
-                      onClick={handleSendEmails}
-                      disabled={sendingEmails || selectedCandidates.length === 0}
-                    >
-                      {sendingEmails ? 'Sending...' : (modalType === 'acceptance' ? 'Send Acceptance Mail' : 'Send Quiz Links')}
+                    <button className="primary-btn-send" onClick={handleSendEmails}>
+                      {modalType === 'acceptance' ? 'Send Acceptance Mail' : 'Send Quiz Links'}
                     </button>
                   </div>
                 </>

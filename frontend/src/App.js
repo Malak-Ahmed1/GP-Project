@@ -33,7 +33,8 @@ function App() {
           <Route path="/apply/:jobId" element={<ApplyPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
-           <Route path="/start/:jobId" element={<StartInterview />} />
+          <Route path="/interview/:jobId/:phaseId/start" element={<StartInterview />} />
+
 
           <Route path="/*" element={
             <Layout>

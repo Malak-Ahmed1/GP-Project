@@ -148,7 +148,7 @@ router.get("/candidates/:jobId", async (req, res) => {
           c.created_at,
           ja.id as application_id,
           ja.score_cv,
-          ja.total_score,
+          ja.cgpa,
           ja.applied_at
        FROM candidate c
        JOIN job_application ja ON c.id = ja.candidate_id
@@ -176,7 +176,7 @@ router.get("/candidates/:jobId", async (req, res) => {
       candidatesMap[row.candidate_id].applications.push({
         application_id: row.application_id,
         score_cv: row.score_cv,
-        total_score: row.total_score,
+        cgpa: row.cgpa,
         applied_at: row.applied_at
       });
     });

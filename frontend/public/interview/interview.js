@@ -9,14 +9,104 @@ const params = new URLSearchParams(window.location.search);
 const jobId = params.get("jobId");
 const phaseId = params.get("phaseId");
 const pcId = params.get("pcId");   // ✅ NEW
-const qIndex = parseInt(params.get("q") || "0", 10);
+let qIndex = parseInt(params.get("q") || "0", 10);
+
+let isRecording = false;
+let currentCheatingCount = 0;
+
 startBtn.disabled = true;
 const nextBtn = document.getElementById("nextBtn");
 
 let questions = [];
 let currentQuestion = null;
 
+
+let screenStream = null;
+let screenVideoEl = null;
+let isMonitoring = false; // NEW: start monitoring once screen share is granted
+let interviewEnded = false;
+
 let mediaRecorder, recordedChunks = [], localStream;
+
+async function startScreenCapture() {
+  // If StartInterviewPage already started it, reuse it
+  screenStream = await navigator.mediaDevices.getDisplayMedia({
+  video: { displaySurface: "monitor" },
+  audio: false
+});
+
+  // validate entire screen
+  const track = screenStream.getVideoTracks()[0];
+  const settings = track.getSettings();
+
+  if (settings.displaySurface && settings.displaySurface !== "monitor") {
+    screenStream.getTracks().forEach(t => t.stop());
+    screenStream = null;
+    window.__INTERVIEW_SCREEN_STREAM__ = null;
+
+    alert("❌ You must select ENTIRE SCREEN (Monitor).");
+    throw new Error("Not entire screen");
+  }
+
+  // Create hidden video element for screenshots
+  screenVideoEl = document.createElement("video");
+  screenVideoEl.srcObject = screenStream;
+  screenVideoEl.muted = true;
+  screenVideoEl.playsInline = true;
+  await screenVideoEl.play();
+  isMonitoring = true;
+}
+
+
+function captureScreenSnapshot() {
+  if (!screenVideoEl) return Promise.resolve(null);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = screenVideoEl.videoWidth || 1280;
+  canvas.height = screenVideoEl.videoHeight || 720;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(screenVideoEl, 0, 0, canvas.width, canvas.height);
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
+function captureWebcamSnapshot(videoEl) {
+  const canvas = document.createElement("canvas");
+  canvas.width = videoEl.videoWidth || 640;
+  canvas.height = videoEl.videoHeight || 480;
+
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+
+  // Convert canvas -> Blob (image/png)
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
+async function sendCheatingEvent({ phase_candidate_id, cheating_type, description, evidenceBlob }) {
+  const fd = new FormData();
+  fd.append("phase_candidate_id", phase_candidate_id);
+  fd.append("cheating_type", cheating_type);
+  fd.append("description", description);
+
+  if (evidenceBlob) {
+    fd.append("evidence", evidenceBlob, "evidence.png");
+  }
+
+  const res = await fetch(`${BACKEND}/api/cheating-events`, {
+    method: "POST",
+    body: fd
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    console.error("Cheating event failed:", err);
+  }
+}
 
 // Load question
 async function loadQuestion() {
@@ -26,10 +116,10 @@ async function loadQuestion() {
   }
 
   if (!pcId) {
-  questionEl.textContent = "Error: pcId missing in URL";
-  startBtn.disabled = true;
-  return;
-}
+    questionEl.textContent = "Error: pcId missing in URL";
+    startBtn.disabled = true;
+    return;
+  }
 
   const res = await fetch(`${BACKEND}/api/questions/phase/${phaseId}`);
   const data = await res.json();
@@ -55,21 +145,41 @@ async function loadQuestion() {
 }
 
 loadQuestion();
+startScreenCapture().catch(console.error);
 // Start recording
+
 startBtn.onclick = async () => {
   startBtn.disabled = true;
-  status.textContent = 'Requesting camera & mic...';
+  status.textContent = 'Requesting permissions (screen, camera & mic)...';
+
   try {
+    // 1) SCREEN permission (NEW)
+    // You can show a message before it:
+    // alert("This interview requires Screen Share. Your screen may be captured if you leave the interview tab.");
+
+    // await startScreenCapture();
+          if (!screenStream) {
+        alert("Screen sharing is required. Please refresh and allow Entire Screen.");
+        startBtn.disabled = false;
+        return;
+      }
+
+    // 2) CAMERA + MIC permission (your old code)
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
     preview.srcObject = localStream;
+
     recordedChunks = [];
     mediaRecorder = new MediaRecorder(localStream, { mimeType: 'video/webm;codecs=vp8,opus' });
     mediaRecorder.ondataavailable = e => { if (e.data.size) recordedChunks.push(e.data); };
     mediaRecorder.start();
+
+    isRecording = true;
     stopBtn.disabled = false;
     status.textContent = 'Recording...';
-  } catch {
-    alert('Camera/microphone permission required.');
+
+  } catch (err) {
+    console.error(err);
+    alert('Permissions are required (screen + camera + mic).');
     startBtn.disabled = false;
     status.textContent = '';
   }
@@ -81,7 +191,9 @@ stopBtn.onclick = () => {
   if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
   stopBtn.disabled = true;
   startBtn.disabled = false;
+  isRecording = false;
   if (localStream) localStream.getTracks().forEach(t => t.stop());
+ 
   status.textContent = 'Stopped. Uploading...';
 
   mediaRecorder.onstop = async () => {
@@ -98,68 +210,126 @@ stopBtn.onclick = () => {
       dots = (dots + 1) % 4;
     }, 500);
 
-try {
-  const res = await fetch(`${BACKEND}/api/upload`, { method: 'POST', body: fd });
-  clearInterval(loadingInterval);
-  const data = await res.json();
+    try {
+      const res = await fetch(`${BACKEND}/api/upload`, { method: 'POST', body: fd });
+      clearInterval(loadingInterval);
+      const data = await res.json();
 
-  if (data.error) {
+      if (data.error) {
 
-  status.innerHTML = `<b>Error:</b> ${data.error}`;
+        status.innerHTML = `<b>Error:</b> ${data.error}`;
 
-} else {
+      } else {
 
-  status.innerHTML = `
+        status.innerHTML = `
     <b>Raw Transcript:</b><br>${data.raw_transcript}<br><br>
     <b>Polished Transcript:</b><br>${data.polished_transcript}<br><br>
     <b>Similarity:</b> ${(data.similarity * 100).toFixed(2)}%
   `;
 
-    // ✅ SAVE ANSWER TO DB
-  await fetch(`${BACKEND}/api/candidate-answer`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      phase_candidate_id: pcId,
-      question_item_id: currentQuestion.id,
-      raw_answer: data.raw_transcript,
-      polished_answer: data.polished_transcript,
-      score: Math.round((data.similarity || 0) * 100)
-    })
-  });
+        // ✅ SAVE ANSWER TO DB
+        await fetch(`${BACKEND}/api/candidate-answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            phase_candidate_id: pcId,
+            question_item_id: currentQuestion.id,
+            raw_answer: data.raw_transcript,
+            polished_answer: data.polished_transcript,
+            score: Math.round((data.similarity || 0) * 100)
+          })
+        });
 
-  // ✅ ENABLE NEXT BUTTON AFTER SUCCESSFUL UPLOAD
-  nextBtn.disabled = false;
+        // ✅ ENABLE NEXT BUTTON AFTER SUCCESSFUL UPLOAD
+        nextBtn.disabled = false;
 
-  // ✅ CHANGE BUTTON TEXT IF LAST QUESTION
-  if (qIndex >= questions.length - 1) {
-    nextBtn.textContent = "Finish";
-  } else {
-    nextBtn.textContent = "Next Question";
-  }
+        // ✅ CHANGE BUTTON TEXT IF LAST QUESTION
+        if (qIndex >= questions.length - 1) {
+          nextBtn.textContent = "Finish";
+        } else {
+          nextBtn.textContent = "Next Question";
+        }
 
-}
-} catch (e) {
-  clearInterval(loadingInterval);
-  console.error(e);
-  status.textContent = 'Upload failed';
-}
+      }
+    } catch (e) {
+      clearInterval(loadingInterval);
+      console.error(e);
+      status.textContent = 'Upload failed';
+    }
 
   };
 };
-nextBtn.onclick = () => {
-    if (nextBtn.disabled) return;   // ✅ ADD THIS
+function stopMonitoringAndStreams() {
+  interviewEnded = true;   // ✅ important
+  isMonitoring = false;
+  isRecording = false;
 
-  if (!questions.length) return;
-
-  if (qIndex >= questions.length - 1) {
-    // finished
-    alert("Interview finished ✅");
-    // You can redirect somewhere if you want:
-    // window.location.href = "/thank-you";
-    return;
+  // stop camera stream if still running
+  if (localStream) {
+    localStream.getTracks().forEach(t => t.stop());
+    localStream = null;
   }
 
+  // stop screen share
+  if (screenStream) {
+    screenStream.getTracks().forEach(t => t.stop());
+    screenStream = null;
+  }
+
+  // clean video element
+  screenVideoEl = null;
+}
+nextBtn.onclick = async () => {
+  if (nextBtn.disabled) return;
+  if (!questions.length) return;
+
   const nextIndex = qIndex + 1;
-window.location.href = `/interview/?jobId=${jobId}&phaseId=${phaseId}&pcId=${pcId}&q=${nextIndex}`;
+
+ if (nextIndex >= questions.length) {
+  stopMonitoringAndStreams(); // ✅ stop cheating + stop screen share
+  window.location.href = "/interview/finish.html"; // ✅ show UI page
+  return;
+}
+
+  // update current question without reloading the page
+  currentQuestion = questions[nextIndex];
+  questionEl.textContent = currentQuestion.ques_text;
+
+  // reset UI
+  nextBtn.disabled = true;
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  status.textContent = "";
+
+  // update qIndex value (make it let not const)
+qIndex = nextIndex;
+if (qIndex >= questions.length - 1) {
+  nextBtn.textContent = "Finish";
+} else {
+  nextBtn.textContent = "Next Question";
+}
 };
+
+document.addEventListener("visibilitychange", async () => 
+  {
+if (!isMonitoring || interviewEnded) return;
+  if (document.hidden) {
+    currentCheatingCount++;
+
+    // 1) Capture webcam snapshot
+    
+    const evidenceBlob = await captureScreenSnapshot();
+    // 2) Send cheating event to backend
+    await sendCheatingEvent({
+      phase_candidate_id: pcId,
+      cheating_type: "TAB_SWITCH",
+      description: `Candidate switched tab during recording (count=${currentCheatingCount})`,
+      evidenceBlob
+    });
+
+    // Optional: show message to candidate
+    alert("Warning: Tab switching is not allowed. This action is recorded.");
+  }
+});
+
+

@@ -1,4 +1,7 @@
 require('dotenv').config();
+const path = require("path");
+
+
 const express = require('express');
 const cors = require('cors');
 const jobRoutes = require('./routes/jobRoutes');
@@ -14,6 +17,8 @@ const quizRoutes = require("./routes/quizRoutes");
 const acceptanceRoutes = require('./routes/acceptanceRoutes');
 const candidateAnswerRoutes = require("./routes/candidateAnswerRoutes");
 const interviewUploadRoutes = require("./routes/interviewUploadRoutes");
+const cheatingEventsRoutes = require("./routes/cheatingEventsRoutes");
+
 const app = express();
 
 // CORS configuration
@@ -41,6 +46,18 @@ app.use("/api/candidate-answer", candidateAnswerRoutes);
 app.use("/api/interview-upload", interviewUploadRoutes);
 app.use("/api/upload", interviewUploadRoutes);
 app.use("/uploads", express.static("uploads"));
+
+app.use("/uploads-inline", express.static(path.join(process.cwd(), "uploads"), {
+  setHeaders: (res, filePath) => {
+    res.setHeader("Content-Disposition", "inline");
+
+    // ✅ Force correct content type for images
+    if (filePath.endsWith(".png")) res.setHeader("Content-Type", "image/png");
+    if (filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")) res.setHeader("Content-Type", "image/jpeg");
+    if (filePath.endsWith(".webp")) res.setHeader("Content-Type", "image/webp");
+  }
+}));
+app.use("/api/cheating-events", cheatingEventsRoutes);
 
 const PORT = process.env.PORT || 5000;
 
