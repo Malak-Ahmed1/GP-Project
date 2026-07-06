@@ -12,6 +12,58 @@ frontend/node_modules/
 backend/node_modules/
 backend/uploads/
 
+
+# ===== Model folders (large trained model weights) =====
+backend/checkpoints/
+backend/mohler_bert_bilstm_trial4/
+backend/mohler_deberta/
+backend/mohler_roberta_trial2/
+backend/mohler_trial6_best/
+backend/scientsbank_trial5/
+backend/scientsbank_trial6/
+backend/sprag_test/
+backend/asag_final_safe/
+backend/bge-mohler-finetuned/
+
+# ===== Training/experiment scripts (scratch/trial files) =====
+backend/train_asag.py
+backend/train_roberta_asag.py
+backend/Trial1_roberta_improved .py
+backend/Trial2_roberta_improved.py
+backend/Trial5_universal_asag_regression.py
+backend/trial4_bert_bilstm_fusion.py
+backend/trial6_mohler_best.py
+backend/trial6_universal_asag_v2.py
+backend/test_model.py
+backend/test_mohler.py
+
+# ===== Data/config artifacts =====
+backend/best_thresholds.json
+
+# ===== Media/binary test files =====
+backend/temp_audio.wav
+
+# ===== Node =====
+node_modules/
+package-lock.json
+
+# ===== Env / secrets =====
+.env
+
+# ===== Uploads (user-generated content, not source code) =====
+backend/uploads/
+
+# ===== Python =====
+__pycache__/
+*.pyc
+*.pyo
+
+# ===== OS/editor junk =====
+.DS_Store
+Thumbs.db
+
+
+
 backend/models/
 .env
 backend/env

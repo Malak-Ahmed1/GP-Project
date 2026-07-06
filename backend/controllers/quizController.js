@@ -225,7 +225,7 @@ exports.assignAndSendQuiz = async (req, res) => {
     }
 
     if (insertedCandidates.length === 0) {
-      return res.status(400).json({ message: "Selected candidates are already assigned." });
+      //return res.status(400).json({ message: "Selected candidates are already assigned." });
     }
 
     // 2️⃣ Send quiz link emails

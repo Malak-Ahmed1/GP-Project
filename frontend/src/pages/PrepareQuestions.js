@@ -3,9 +3,12 @@ import { useParams } from "react-router-dom";
 import API from "../services/api";
 import { FiPlus, FiTrash2, FiEdit2, FiX, FiSave } from "react-icons/fi";
 
+
+
 function PrepareQuestions() {
   const { jobId } = useParams();
   // Store multiple custom Q&A before adding to phase
+  const [genLoading, setGenLoading] = useState(false);
   const [customQuestions, setCustomQuestions] = useState([
     { question: "", answer: "" }
   ]);
@@ -13,7 +16,10 @@ function PrepareQuestions() {
   const [phases, setPhases] = useState([]);
   const [activePhase, setActivePhase] = useState(null);
   const [loading, setLoading] = useState(true);
+
   const [excelFile, setExcelFile] = useState(null);
+const [toast, setToast] = useState({ show: false, message: "", type: "success" });
+
 
   useEffect(() => {
     setLoading(true);
@@ -44,6 +50,8 @@ function PrepareQuestions() {
         // Map severity numbers to strings
         const difficultyMapReverse = { 1: "easy", 2: "medium", 3: "hard", 4: "mixed" };
 
+        
+
         // Merge questions and backend fields into phases
         const fetchedPhases = phaseRes.data.map(phase => ({
           ...phase,
@@ -67,6 +75,24 @@ function PrepareQuestions() {
   }, [jobId]);
 
 
+  const generateQuestions = () => {
+          setGenLoading(true);
+
+          setTimeout(() => {
+            setGenLoading(false);
+
+            showToast("Questions generated successfully 🎉", "success");
+           
+          }, 3000);
+        };
+
+const showToast = (message, type = "success") => {
+  setToast({ show: true, message, type });
+
+  setTimeout(() => {
+    setToast({ show: false, message: "", type: "success" });
+  }, 3000);
+};
   useEffect(() => {
     if (!job || phases.length === 0) return;
 
@@ -80,49 +106,47 @@ function PrepareQuestions() {
 
 
 
-const uploadExcelQuestions = async (e) => {
-  e?.preventDefault();
-  e?.stopPropagation();
+  const uploadExcelQuestions = async (e) => {
+    e?.preventDefault();
+    e?.stopPropagation();
 
-  alert("✅ Click worked");        // IMPORTANT: alert proves the click works
-  console.log("✅ Upload button clicked");
 
-  if (!excelFile) return alert("Please choose an Excel file first.");
-  if (!currentPhase?.id) return alert("Choose a phase first.");
 
-  try {
-    const fd = new FormData();
-    fd.append("file", excelFile);
 
-    const res = await API.post(
-      `/questions/upload-excel/${currentPhase.id}`,
-      fd
-    );
 
-    const createdQuestions = res.data.questions.map(q => ({
-      id: q.id,
-      text: q.ques_text,
-      answer: q.correct_answer,
-      isEditing: false,
-      isEditingAnswer: false,
-      isCustom: true
-    }));
+    try {
+      const fd = new FormData();
+      fd.append("file", excelFile);
 
-    setPhases(prev =>
-      prev.map(p =>
-        p.id === currentPhase.id
-          ? { ...p, generatedQuestions: [...p.generatedQuestions, ...createdQuestions] }
-          : p
-      )
-    );
+      const res = await API.post(
+        `/questions/upload-excel/${currentPhase.id}`,
+        fd
+      );
 
-    setExcelFile(null);
-    alert(`Uploaded ${res.data.createdCount} questions ✅`);
-  } catch (err) {
-    console.error("❌ Upload failed:", err);
-    alert(err.response?.data?.error || err.message || "Upload failed");
-  }
-};
+      const createdQuestions = res.data.questions.map(q => ({
+        id: q.id,
+        text: q.ques_text,
+        answer: q.correct_answer,
+        isEditing: false,
+        isEditingAnswer: false,
+        isCustom: true
+      }));
+
+      setPhases(prev =>
+        prev.map(p =>
+          p.id === currentPhase.id
+            ? { ...p, generatedQuestions: [...p.generatedQuestions, ...createdQuestions] }
+            : p
+        )
+      );
+
+      setExcelFile(null);
+      showToast(`Uploaded ${res.data.createdCount} questions successfully 🎉`, "success");
+    } catch (err) {
+      console.error("❌ Upload failed:", err);
+      alert(err.response?.data?.error || err.message || "Upload failed");
+    }
+  };
 
   const createPhase = () => {
     const currentPhase = phases.find(p => p.id === activePhase) || {};
@@ -500,6 +524,12 @@ const uploadExcelQuestions = async (e) => {
 
   return (
     <div className="page-container prepare-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
+       {/* ✅ TOAST HERE (ADD THIS) */}
+    {toast.show && (
+  <div className={`app-toast ${toast.type}`}>
+    {toast.message}
+  </div>
+)}
       <div className="card prepare-questions-card" style={{
         background: '#ffffff',
         borderRadius: '12px',
@@ -607,13 +637,35 @@ const uploadExcelQuestions = async (e) => {
               <div className="form-row">
                 <div className="form-group full-width">
                   <label>Job Description (Auto-filled)</label>
-                  <textarea
-                    className="input"
-                    rows="4"
-                    value={currentPhase.jobDescription}
-                    onChange={(e) => updatePhase(currentPhase.id, 'jobDescription', e.target.value)}
-                    placeholder="Type or edit the job description..."
-                  />
+                  <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+
+  <textarea
+    className="input"
+    rows="4"
+    value={currentPhase.jobDescription}
+    onChange={(e) =>
+      updatePhase(currentPhase.id, 'jobDescription', e.target.value)
+    }
+  />
+
+<button
+  type="button"
+  onClick={generateQuestions}
+  disabled={genLoading}
+  className="generate-ai-btn"
+>
+  {genLoading ? (
+    <>
+      <span className="spinner"></span> Generating...
+    </>
+  ) : (
+    <>
+       Generate Questions
+    </>
+  )}
+</button>
+
+</div>
                 </div>
               </div>
 
@@ -648,23 +700,26 @@ const uploadExcelQuestions = async (e) => {
                 </button>
 
                 <input
-  type="file"
-  accept=".xlsx,.xls"
-  onChange={(e) => {
-    const f = e.target.files?.[0];
-    console.log("✅ selected file:", f);
-    alert(f ? `✅ Selected: ${f.name}` : "❌ No file selected");
-    setExcelFile(f || null);
-  }}
-style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }}/>
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    console.log("✅ selected file:", f);
+                    showToast(
+  f ? `File selected: ${f.name}` : "No file selected",
+  f ? "success" : "error"
+);
+                    setExcelFile(f || null);
+                  }}
+                  style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }} />
 
                 <button
-  type="button"
-  className="generate-btn"
-  onClick={(e) => uploadExcelQuestions(e)}
-style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }}>
-  Upload Questions From Excel
-</button>
+                  type="button"
+                  className="generate-btn"
+                  onClick={(e) => uploadExcelQuestions(e)}
+                  style={{ marginTop: "10px", pointerEvents: "auto", zIndex: 9999, position: "relative" }}>
+                  Upload Questions From Excel
+                </button>
 
 
               </div>

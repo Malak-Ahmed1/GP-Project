@@ -34,11 +34,11 @@ exports.addCandidateAnswer = async (req, res) => {
 
     // 2) Recalculate PHASE SCORE = SUM(question scores) for this phase_candidate
     const sumRes = await pool.query(
-      `SELECT COALESCE(SUM(score), 0) AS phase_score
-       FROM candidate_answer_details
-       WHERE phase_candidate_id = $1`,
-      [phase_candidate_id]
-    );
+  `SELECT COALESCE(AVG(score), 0) AS phase_score
+   FROM candidate_answer_details
+   WHERE phase_candidate_id = $1`,
+  [phase_candidate_id]
+);
     const phaseScore = Number(sumRes.rows[0].phase_score) || 0;
 
     // 3) Get job_application_id + current phase_order + job_id

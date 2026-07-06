@@ -18,7 +18,7 @@ exports.assignCandidateToPhase = async (req, res) => {
       "SELECT * FROM phase_candidates WHERE phase_id = $1 AND job_application_id = $2",
       [phase_id, job_application_id]
     );
-    if (duplicateCheck.rows.length > 0) return res.status(400).json({ error: "Candidate already assigned to this phase." });
+    // if (duplicateCheck.rows.length > 0) return res.status(400).json({ error: "Candidate already assigned to this phase." });
 
     // Insert
     const result = await pool.query(

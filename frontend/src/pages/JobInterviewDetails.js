@@ -11,6 +11,7 @@ function JobInterviewDetails() {
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const [toast, setToast] = useState({ show: false, message: "", type: "success" });
   // Modal states
   const [showModal, setShowModal] = useState(false);
   const [modalStep, setModalStep] = useState(1);
@@ -75,7 +76,7 @@ function JobInterviewDetails() {
               maxScore: 100,
               cheatingFlags: c.cheating_flag ? ["Cheating detected"] : [],
               submittedAt: c.date || null,
-              timeSpent: 'N/A',
+              //timeSpent: 'N/A',
               answers: []
             }));
             return {
@@ -100,6 +101,14 @@ function JobInterviewDetails() {
 
     fetchJobData();
   }, [jobId]);
+
+  const showToast = (message, type = "success") => {
+  setToast({ show: true, message, type });
+
+  setTimeout(() => {
+    setToast({ show: false, message: "", type: "success" });
+  }, 3000);
+};
 
 
   useEffect(() => {
@@ -168,7 +177,9 @@ HR Team`);
   const handleSendQuizClick = () => {
     setModalType('quiz');
     setModalStep(1);
-    setSelectedCandidates([]);
+    const currentPhase = phases.find(p => p.id === activePhase);
+
+setSelectedCandidates(currentPhase.candidates.map(c => c.id));
     setEmailBody(`Dear Candidate,
 
 You have been selected for the next phase of our hiring process. Please complete the technical assessment by clicking the link below.
@@ -182,14 +193,21 @@ HR Team`);
     setShowModal(true);
   };
 
-  const toggleSelectAll = () => {
-    const currentPhase = phases.find(p => p.id === activePhase);
-    if (selectedCandidates.length === currentPhase.candidates.length) {
-      setSelectedCandidates([]);
-    } else {
-      setSelectedCandidates(currentPhase.candidates.map(c => c.id));
-    }
-  };
+const toggleSelectAll = () => {
+  const currentPhase = phases.find(p => p.id === activePhase);
+  if (!currentPhase) return;
+
+  const displayedCandidates = getSortedCandidates(
+    currentPhase.candidates,
+    currentPhase.id
+  );
+
+  if (selectedCandidates.length === displayedCandidates.length) {
+    setSelectedCandidates([]); // ✅ deselect all
+  } else {
+    setSelectedCandidates(displayedCandidates.map(c => c.id)); // ✅ select only visible
+  }
+};
 
   const handleCheckbox = (id) => {
     setSelectedCandidates(prev =>
@@ -230,7 +248,7 @@ HR Team`);
           }
         );
 
-        alert(response.data.message);
+        showToast(response.data.message, "success");
 
         // Update frontend state to mark quiz sent AND show only selected candidates
         setPhases(prev =>
@@ -270,7 +288,7 @@ HR Team`);
           { phase_id: currentPhase.id }
         );
 
-        alert(`Acceptance emails sent to ${emails.length} candidates!`);
+        showToast(`Acceptance emails sent to ${emails.length} candidates!`, "success");
 
         // Prepare jobApplicationIds
         const jobApplicationIds = selectedCandidates.map(id => {
@@ -305,7 +323,7 @@ HR Team`);
     }
     catch (err) {
       console.error(err);
-      alert('Error sending emails: ' + (err.response?.data?.message || err.message));
+      showToast(err.response?.data?.message || err.message, "error");
     }
   };
 
@@ -430,10 +448,10 @@ HR Team`);
                 <div className="stat-value">{selectedCandidate?.score || 0}/{selectedCandidate?.maxScore || 0}</div>
                 <div className="stat-label">Score</div>
               </div>
-              <div className="stat-box">
-                <div className="stat-value">{selectedCandidate?.timeSpent?.replace(' min', '') || '0'}/{selectedCandidate?.phaseTimeLimit?.replace(' minutes', '') || 'N/A'}</div>
+              {/* <div className="stat-box">
+                <div className="stat-value">{selectedCandidate?.timeSpent?.replace(' min', '') || '0'}/{selectedCandidate?.phaseTimeLimit?.replace(' minutes', '') || '20'}</div>
                 <div className="stat-label">Time</div>
-              </div>
+              </div> */}
 
             </div>
           </div>
@@ -517,7 +535,15 @@ HR Team`);
 
   return (
     <>
-      <div className={`page-container ${showModal ? 'blurred' : ''}`}>
+    {/* 🔥 TOAST GOES HERE (top-level, outside everything) */}
+    {toast.show && (
+      <div className={`app-toast ${toast.type}`}>
+        {toast.message}
+      </div>
+    )}
+      <div className={`page-container ${showModal ? 'blurred' : ''}`}
+      >
+        
         <div className="card" style={{ maxWidth: '1100px' }}>
           {/* Header */}
           <div className="job-details-header">

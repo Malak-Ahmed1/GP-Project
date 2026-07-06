@@ -2,7 +2,7 @@ const preview = document.getElementById('preview');
 const startBtn = document.getElementById('startBtn');
 const stopBtn = document.getElementById('stopBtn');
 const questionEl = document.getElementById('question');
-const status = document.getElementById('status');
+//const status = document.getElementById('status');
 
 const BACKEND = 'http://127.0.0.1:5000';
 const params = new URLSearchParams(window.location.search);
@@ -13,6 +13,11 @@ let qIndex = parseInt(params.get("q") || "0", 10);
 
 let isRecording = false;
 let currentCheatingCount = 0;
+
+const timerEl = document.getElementById("timer");
+
+let timerInterval = null;
+let remainingTime = 2 * 60 * 60; // 2 hours in seconds
 
 startBtn.disabled = true;
 const nextBtn = document.getElementById("nextBtn");
@@ -58,7 +63,42 @@ function startProctoring() {
 
   }, 2000);
 }
+function startTimer() {
+  timerInterval = setInterval(() => {
 
+    if (interviewEnded) {
+      clearInterval(timerInterval);
+      return;
+    }
+
+    const hours = Math.floor(remainingTime / 3600);
+    const minutes = Math.floor((remainingTime % 3600) / 60);
+    const seconds = remainingTime % 60;
+
+    timerEl.textContent =
+      `⏱ ${hours.toString().padStart(2, "0")}:` +
+      `${minutes.toString().padStart(2, "0")}:` +
+      `${seconds.toString().padStart(2, "0")}`;
+
+    // 🔥 Add warning style when time is low
+    if (remainingTime <= 300) {
+      timerEl.classList.add("timer-warning"); // last 5 minutes
+    }
+
+    remainingTime--;
+
+    if (remainingTime < 0) {
+      clearInterval(timerInterval);
+
+      timerEl.textContent = "⛔ Time is up!";
+      timerEl.classList.add("timer-warning");
+
+      stopMonitoringAndStreams();
+      window.location.href = "/interview/finish.html";
+    }
+
+  }, 1000);
+}
 function stopProctoring() {
   if (proctoringInterval) {
     clearInterval(proctoringInterval);
@@ -89,6 +129,7 @@ async function startCameraAlways() {
     preview.style.borderRadius = "8px";
     preview.style.objectFit = "cover";   // maintain camera aspect ratio
     preview.style.zIndex = "1";          // behind questions/buttons if needed
+    startTimer();
 
 
   } catch (err) {
@@ -332,6 +373,10 @@ stopBtn.onclick = () =>
   };
 };
 function stopMonitoringAndStreams() {
+  if (timerInterval) {
+  clearInterval(timerInterval);
+  timerInterval = null;
+}
   interviewEnded = true;   // ✅ important
   isMonitoring = false;
   isRecording = false;
@@ -413,7 +458,7 @@ document.addEventListener("visibilitychange", async () => {
         evidenceBlob
       });
 
-      alert("Warning: Tab switching is not allowed. This action is recorded.");
+      //alert("Warning: Tab switching is not allowed. This action is recorded.");
 
     } catch (err) {
       console.error("Tab switch capture failed:", err);

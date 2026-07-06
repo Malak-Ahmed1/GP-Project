@@ -123,9 +123,9 @@ useEffect(() => {
             Back to Candidates
           </button>
           <h1>{candidate.name}</h1>
-<span className={`status-badge ${candidate.status || 'unknown'}`}>
-  {(candidate.status || 'unknown').charAt(0).toUpperCase() + (candidate.status || 'unknown').slice(1)}
-</span>
+{/* <span className={`status-badge ${candidate.status || 'unknown'}`}> */}
+  {/* {(candidate.status || 'unknown').charAt(0).toUpperCase() + (candidate.status || 'unknown').slice(1)} */}
+{/* </span> */}
 
         </div>
 
@@ -139,19 +139,19 @@ useEffect(() => {
                 <Mail size={16} />
                 <span>{candidate.email}</span>
               </div>
-              <div className="contact-item">
+              {/* <div className="contact-item">
                 <Phone size={16} />
                 <span>{candidate.phone}</span>
-              </div>
-              <div className="contact-item">
+              </div> */}
+              {/* <div className="contact-item">
                 <MapPin size={16} />
                 <span>{candidate.address}</span>
-              </div>
+              </div> */}
             </div>
           </div>
 
-          {/* Professional Summary */}
-          <div className="content-section">
+          {/*Professional Summary}
+          {/* <div className="content-section">
             <h3><Briefcase size={18} /> Professional Summary</h3>
             <p>{candidate.bio}</p>
             <div className="info-grid">
@@ -168,23 +168,23 @@ useEffect(() => {
                 <span>{candidate.dateApplied}</span>
               </div>
             </div>
-          </div>
+          </div> */}
 
           {/* Skills */}
-          <div className="content-section">
+          {/* <div className="content-section">
             <h3><Award size={18} /> Skills</h3>
             <div className="skills-container">
               {candidate.skills?.map((skill, index) => (
   <span key={index} className="skill-tag">
     {skill}
   </span>
-)) || []}
-
+)) || []} */}
+{/* 
             </div>
-          </div>
+          </div> */}
 
           {/* Profile Links */}
-          <div className="content-section">
+          {/* <div className="content-section">
             <h3>Quick Links</h3>
             <div className="links-grid">
               {candidate.portfolio && (
@@ -203,7 +203,7 @@ useEffect(() => {
                 </a>
               )}
             </div>
-          </div>
+          // </div> */}
 
           {/* CV/Resume Section */}
           <div className="content-section">
@@ -292,19 +292,19 @@ useEffect(() => {
                                       <label>Score:</label>
                                       <span className="score-value">{phase.score}%</span>
                                     </div>
-                                    <div className="phase-metric">
+                                    {/* <div className="phase-metric">
                                       <label>Rank:</label>
                                       <span className="rank-value">
                                         #{phase.rank} of {phase.totalCandidates}
                                       </span>
-                                    </div>
+                                    </div> */}
                                   </>
                                 )}
                                 
-                                <div className="phase-metric">
+                                {/* <div className="phase-metric">
                                   <label>Time:</label>
                                   <span>{phase.timeSpent} / {phase.timeLimit}</span>
-                                </div>
+                                </div> */}
                                 
                                 {phase.submittedAt && (
                                   <div className="phase-metric">

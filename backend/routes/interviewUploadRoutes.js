@@ -9,15 +9,14 @@ const upload = multer({ dest: "uploads/" });
 
 // POST /api/upload
 router.post("/", upload.single("video"), (req, res) => {
-  const { ideal_answer } = req.body;
+  const { ideal_answer, question } = req.body;
   const filePath = req.file.path;
 
   // ✅ CHANGE THESE PATHS TO YOUR MACHINE
   const pythonPath = process.env.PYTHON_PATH; // put in .env
   const scriptPath = path.join(__dirname, "..", "compare.py"); // put compare.py in backend root
 
-  const py = spawn(pythonPath, [scriptPath, filePath, ideal_answer]);
-
+const py = spawn(pythonPath, [scriptPath, filePath, ideal_answer, question || ""]);
   let output = "";
 
   py.stdout.on("data", (data) => {
@@ -36,12 +35,20 @@ router.post("/", upload.single("video"), (req, res) => {
     try {
 const lines = output.trim().split(/\r?\n/);
 const lastLine = lines[lines.length - 1];
-const jsonOutput = JSON.parse(lastLine);      return res.json({
+const jsonOutput = JSON.parse(lastLine);
+
+      if (jsonOutput.error) {
+        console.error("Python reported error:", jsonOutput.error);
+        return res.status(500).json({ error: jsonOutput.error });
+      }
+
+      return res.json({
         raw_transcript: jsonOutput.raw_transcript,
         polished_transcript: jsonOutput.polished_transcript,
         similarity: jsonOutput.similarity,
       });
     } catch (e) {
+      console.error("Failed to parse Python output. Full stdout was:\n", output);
       return res.status(500).json({ error: "Python script failed", details: output });
     }
   });
